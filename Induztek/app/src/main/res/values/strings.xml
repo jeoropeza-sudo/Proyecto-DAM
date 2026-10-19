@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Induztek</string>
+
+    <!-- Formulario Protocolo -->
+    <string name="titulo_formulario">Protocolo de Terreno</string>
+    <string name="banner_titulo">Induztek Ingeniería</string>
+    <string name="banner_subtitulo">Planta Lampa - Envasadora del Pacífico</string>
+    <string name="seccion_datos">Identificación del Equipo</string>
+    <string name="seccion_preferencias">Configuración de Prueba</string>
+    <string name="campo_nombre">Técnico Responsable</string>
+    <string name="campo_correo">Correo corporativo</string>
+    <string name="campo_contrasena">Contraseña</string>
+    <string name="campo_ciudad">Planta / Ubicación</string>
+    <string name="etiqueta_nivel">Nivel de Experiencia</string>
+    <string name="opcion_noticias">Recibir alertas de mantenimiento</string>
+    <string name="opcion_terminos">Acepto los términos de servicio en terreno</string>
+    <string name="btn_limpiar">Limpiar</string>
+    <string name="btn_registrar">Guardar Protocolo</string>
+    <string name="registro_exitoso">¡Protocolo guardado con éxito! Registro %1$s</string>
+
+    <!-- Perfil -->
+    <string name="titulo_perfil">Mi Perfil Técnico</string>
+    <string name="seccion_sobre_mi">Información de la Planta</string>
+    <string name="seccion_intereses">Especialidades</string>
+    <string name="btn_seguir">Seguir</string>
+    <string name="btn_siguiendo">Siguiendo</string>
+
+    <!-- Menú y Navegación -->
+    <string name="saludo">Hola, %1$s</string>
+    <string name="menu_mi_perfil">Mi Perfil</string>
+    <string name="menu_ver_usuarios">Ver Historial / Registros</string>
+    <string name="titulo_usuarios">Registros en Terreno</string>
+
+    <!-- Diálogos y Edición -->
+    <string name="titulo_editar">Editar Registro</string>
+    <string name="menu_cerrar_sesion">Cerrar Sesión</string>
+    <string name="dialogo_titulo">¿Cerrar Sesión?</string>
+    <string name="dialogo_mensaje">Tendrás que iniciar sesión nuevamente para guardar datos en SQLite.</string>
+    <string name="dialogo_cancelar">Cancelar</string>
+    <string name="snackbar_sesion_cerrada">Sesión cerrada</string>
+
+    <!-- Descripciones -->
+    <string name="cd_banner">Banner corporativo Induztek SpA</string>
+    <string name="cd_portada">Portada del perfil técnico</string>
+    <string name="cd_avatar">Foto de perfil del técnico</string>
+    <string name="cd_mostrar_contrasena">Mostrar contraseña</string>
+    <string name="cd_ocultar_contrasena">Ocultar contraseña</string>
+    <string name="cd_volver">Volver</string>
+    <string name="cd_menu">Abrir menú</string>
+    <string name="cd_guardar">Guardar cambios</string>
+
+    <!-- Listas -->
+    <string name="campo_buscar">Buscar por TAG o equipo...</string>
+    <string name="lista_vacia">No se encontraron registros de mantenimiento</string>
+    <string name="campo_rol">Rol / Cargo</string>
+
+    <!-- Eliminación -->
+    <string name="cd_eliminar">Eliminar registro</string>
+    <string name="dialogo_eliminar_titulo">¿Eliminar protocolo?</string>
+    <string name="dialogo_eliminar_mensaje">Se eliminará el protocolo de %1$s de la base de datos SQLite.</string>
+    <string name="btn_eliminar">Eliminar</string>
+
+    <!-- Cámara -->
+    <string name="btn_camara">Cámara</string>
+    <string name="btn_galeria">Galería</string>
+    <string name="texto_cambiar_foto">Cambia tu foto de perfil</string>
+
+    <!-- Permisos -->
+    <string name="permiso_camara_denegado">Sin permiso de cámara no se puede tomar la foto</string>
+    <string name="permiso_galeria_denegado">Sin permiso de fotos no se puede leer la galería</string>
+    <string name="btn_ajustes">Ajustes</string>
+</resources>
