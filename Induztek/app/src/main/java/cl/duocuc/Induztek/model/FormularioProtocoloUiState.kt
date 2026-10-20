@@ -1,4 +1,5 @@
 package cl.duocuc.Induztek.model
+
 enum class TipoEquipoOption(val etiqueta: String) {
     TRANSFORMADOR("Transformador"),
     CELDA_MT("Celda MT"),
@@ -14,7 +15,13 @@ enum class DevanadoOption(val etiqueta: String) {
 }
 
 data class FormularioProtocoloUiState(
-    // Identificación y Selección
+    // Autenticación y Acceso
+    val correoLogin: String = "",
+    val claveLogin: String = "",
+    val claveVisible: Boolean = false,
+    val errorLogin: String? = null,
+
+    // Identificación
     val tagEquipo: String = "TR-01",
     val tagsDisponibles: List<String> = listOf("TR-01", "TR-02", "TR-A", "CEL-MT-03", "INT-52-1"),
     val tipoEquipo: TipoEquipoOption = TipoEquipoOption.TRANSFORMADOR,
@@ -27,12 +34,12 @@ data class FormularioProtocoloUiState(
     val lectura10Min: String = "",
     val observaciones: String = "",
 
-    // Valores Calculados e Indicadores
+    // Valores Calculados
     val ipCalculado: Double = 0.0,
-    val resultadoEvaluado: String = "PENDIENTE", // APROBADO, OBSERVADO, RECHAZADO
+    val resultadoEvaluado: String = "PENDIENTE",
     val variacionDetectada: Boolean = false,
 
-    // Manejo de Errores e Indicadores de Estado
+    // Manejo de Errores
     val errorLectura1Min: String? = null,
     val errorLectura10Min: String? = null,
     val errorObservaciones: String? = null,

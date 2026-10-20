@@ -1,11 +1,14 @@
 package cl.duocuc.Induztek.navigation
 
-sealed class Rutas(val ruta: String) {
-    object Formulario : Rutas("formulario")
-    object Historial : Rutas("historial/{idEquipo}") {
-        fun crearRuta(idEquipo: Long) = "historial/$idEquipo"
+sealed class Ruta(val ruta: String) {
+    data object Login : Ruta("login")
+    data object Formulario : Ruta("formulario")
+
+    data object Historial : Ruta("historial/{idEquipo}") {
+        fun crear(idEquipo: Long) = "historial/$idEquipo"
     }
-    object Comprobante : Rutas("comprobante/{idProtocolo}") {
-        fun crearRuta(idProtocolo: Long) = "comprobante/$idProtocolo"
+
+    data object Comprobante : Ruta("comprobante/{idProtocolo}") {
+        fun crear(idProtocolo: Long) = "comprobante/$idProtocolo"
     }
 }

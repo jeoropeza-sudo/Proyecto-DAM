@@ -7,6 +7,7 @@ import cl.duocuc.Induztek.model.DevanadoOption
 import cl.duocuc.Induztek.model.FormularioProtocoloUiState
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.model.TipoEquipoOption
+import cl.duocuc.Induztek.model.Usuario
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.update
 class FormularioProtocoloViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = InduztekDbHelper(application)
+    private val _usuarioActivo = MutableStateFlow<Usuario?>(null)
+    val usuarioActivo: StateFlow<Usuario?> = _usuarioActivo.asStateFlow()
 
     private val _uiState = MutableStateFlow(FormularioProtocoloUiState())
     val uiState: StateFlow<FormularioProtocoloUiState> = _uiState.asStateFlow()
@@ -23,7 +26,6 @@ class FormularioProtocoloViewModel(application: Application) : AndroidViewModel(
     val historial: StateFlow<List<ProtocoloTerreno>> = _historial.asStateFlow()
 
     init {
-        // Cargar historial de forma segura al inicializar el ViewModel
         recargarHistorial(1L)
     }
 
@@ -35,6 +37,36 @@ class FormularioProtocoloViewModel(application: Application) : AndroidViewModel(
             _historial.value = emptyList()
         }
     }
+
+    fun onCorreoLoginCambia(valor: String) {
+        _uiState.update { it.copy(correoLogin = valor.trim(), errorLogin = null) }
+    }
+
+    fun onClaveLoginCambia(valor: String) {
+        _uiState.update { it.copy(claveLogin = valor, errorLogin = null) }
+    }
+
+    fun onAlternarClaveVisible() {
+        _uiState.update { it.copy(claveVisible = !it.claveVisible) }
+    }
+
+    fun iniciarSesion(correo: String, clave: String): Usuario? {
+        val usuario = db.autenticarUsuario(correo, clave)
+        if (usuario != null) {
+            _usuarioActivo.value = usuario
+            _uiState.update { it.copy(errorLogin = null) }
+        } else {
+            _uiState.update { it.copy(errorLogin = "Credenciales incorrectas. Verifique correo y contraseña.") }
+        }
+        return usuario
+    }
+
+    fun cerrarSesion() {
+        _usuarioActivo.value = null
+        _uiState.update { it.copy(correoLogin = "", claveLogin = "", errorLogin = null) }
+    }
+
+    // --- EVENTOS DEL FORMULARIO DE TERRENO ---
 
     fun onTagEquipoSeleccionado(tag: String) {
         val idEquipo = when (tag) {
@@ -103,14 +135,12 @@ class FormularioProtocoloViewModel(application: Application) : AndroidViewModel(
         if (l1 != null && l10 != null && l1 > 0) {
             val ip = l10 / l1
 
-            // Criterios de Aprobación RN-06
             val resultado = when {
                 l1 < 100.0 || ip < 1.0 -> "RECHAZADO"
                 ip in 1.0..1.999 -> "OBSERVADO"
                 else -> "APROBADO"
             }
 
-            // Comparación Histórica RN-09 (> 25% de variación respecto a prueba anterior)
             val idEquipo = if (estado.tagEquipo == "TR-02") 2L else 1L
             val lecturaAnterior = try {
                 db.obtenerUltimaLecturaAnterior(idEquipo, "LECTURA_1MIN")
@@ -165,15 +195,16 @@ class FormularioProtocoloViewModel(application: Application) : AndroidViewModel(
         }
 
         val idEquipo = if (estado.tagEquipo == "TR-02") 2L else 1L
+        val idUsuarioActivo = _usuarioActivo.value?.idUsuario ?: 1L
 
-        // Inserción en la base de datos SQLite
         val idInsertado = try {
             db.insertarProtocoloCompleto(
                 idEquipo = idEquipo,
                 l1Min = l1!!,
                 l10Min = l10!!,
                 resultado = estado.resultadoEvaluado,
-                observaciones = estado.observaciones
+                observaciones = estado.observaciones,
+                idUsuarioRegistra = idUsuarioActivo
             )
         } catch (e: Exception) {
             e.printStackTrace()

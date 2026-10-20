@@ -56,6 +56,7 @@ import cl.duocuc.Induztek.R
 import cl.duocuc.Induztek.model.DevanadoOption
 import cl.duocuc.Induztek.model.FormularioProtocoloUiState
 import cl.duocuc.Induztek.model.TipoEquipoOption
+import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.BotonSecundario
 import cl.duocuc.Induztek.ui.components.CampoTexto
@@ -76,7 +77,9 @@ import kotlinx.coroutines.launch
 fun FormularioProtocoloScreen(
     onVerHistorial: (Long) -> Unit,
     onVerComprobante: (Long) -> Unit,
-    viewModel: FormularioProtocoloViewModel = viewModel()
+    viewModel: FormularioProtocoloViewModel = viewModel(),
+    usuarioActivo: Usuario? = null,
+    onCerrarSesion: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -113,7 +116,26 @@ fun FormularioProtocoloScreen(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(Dimens.espacioMedio)
                 )
-                HorizontalDivider()
+
+                // Muestra los datos del operador si hay sesión activa
+                if (usuarioActivo != null) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = Dimens.espacioMedio, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Operador: ${usuarioActivo.nombre}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = usuarioActivo.correo,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = Dimens.espacioChico))
 
                 NavigationDrawerItem(
                     label = { Text("Historial del Equipo") },
@@ -124,6 +146,17 @@ fun FormularioProtocoloScreen(
                         onVerHistorial(idEquipo)
                     }
                 )
+
+                if (onCerrarSesion != null) {
+                    NavigationDrawerItem(
+                        label = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onCerrarSesion()
+                        }
+                    )
+                }
             }
         }
     ) {
@@ -341,7 +374,7 @@ fun FormularioProtocoloContent(
                     )
                 }
 
-                // Botones de Acción (estilo del profesor)
+                // Botones de Acción
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.espacioMedio)) {
                     BotonSecundario(
                         texto = "Limpiar",
