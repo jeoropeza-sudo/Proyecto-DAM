@@ -8,432 +8,438 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import cl.duocuc.Induztek.R
-import cl.duocuc.Induztek.model.DevanadoOption
-import cl.duocuc.Induztek.model.FormularioProtocoloUiState
-import cl.duocuc.Induztek.model.TipoEquipoOption
+import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
-import cl.duocuc.Induztek.ui.components.BotonSecundario
-import cl.duocuc.Induztek.ui.components.CampoTexto
-import cl.duocuc.Induztek.ui.components.GrupoRadio
-import cl.duocuc.Induztek.ui.components.ImagenEncabezado
 import cl.duocuc.Induztek.ui.components.TarjetaSeccion
-import cl.duocuc.Induztek.ui.styles.EstilosCampo
-import cl.duocuc.Induztek.ui.theme.Alerta
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
-import cl.duocuc.Induztek.ui.theme.Exito
-import cl.duocuc.Induztek.ui.theme.ExitoFondo
-import cl.duocuc.Induztek.ui.theme.InduztekTheme
-import cl.duocuc.Induztek.viewmodel.FormularioProtocoloViewModel
-import kotlinx.coroutines.launch
+import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormularioProtocoloScreen(
     onVerHistorial: (Long) -> Unit,
     onVerComprobante: (Long) -> Unit,
-    viewModel: FormularioProtocoloViewModel = viewModel(),
-    usuarioActivo: Usuario? = null,
-    onCerrarSesion: (() -> Unit)? = null
+    viewModel: ProtocoloViewModel,
+    usuarioActivo: Usuario?,
+    onCerrarSesion: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    var mostrarDialogoLimpiar by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val esCliente = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)
+    val tecnicoSinAsignaciones = usuarioActivo?.rolCodigo.equals(
+        Rol.CODIGO_TECNICO,
+        ignoreCase = true
+    ) && uiState.instalacionesDisponibles.isEmpty()
+    val visitaEnCurso = uiState.protocolosPendientesVisita > 0
 
-    if (mostrarDialogoLimpiar) {
-        AlertDialog(
-            onDismissRequest = { mostrarDialogoLimpiar = false },
-            title = { Text("Limpiar Formulario") },
-            text = { Text("¿Está seguro de que desea borrar todos los datos ingresados en la prueba?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    mostrarDialogoLimpiar = false
-                    viewModel.onLimpiar()
-                }) { Text("Limpiar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarDialogoLimpiar = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
+    LaunchedEffect(uiState.idProtocoloRegistrado) {
+        uiState.idProtocoloRegistrado?.let(onVerComprobante)
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Text(
-                    text = "Induztek Ingeniería",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(Dimens.espacioMedio)
-                )
-
-                // Muestra los datos del operador si hay sesión activa
-                if (usuarioActivo != null) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = Dimens.espacioMedio, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "Operador: ${usuarioActivo.nombre}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = usuarioActivo.correo,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = Dimens.espacioChico))
-
-                NavigationDrawerItem(
-                    label = { Text("Historial del Equipo") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        val idEquipo = if (uiState.tagEquipo == "TR-02") 2L else 1L
-                        onVerHistorial(idEquipo)
-                    }
-                )
-
-                if (onCerrarSesion != null) {
-                    NavigationDrawerItem(
-                        label = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onCerrarSesion()
-                        }
-                    )
-                }
-            }
+    // 2. AGREGA ESTO: Dispara el filtro matemáticamente basado en el usuario
+    LaunchedEffect(usuarioActivo) {
+        if (usuarioActivo != null) {
+            viewModel.inicializarParaUsuario(usuarioActivo)
         }
-    ) {
-        FormularioProtocoloContent(
-            uiState = uiState,
-            onTagEquipoSeleccionado = viewModel::onTagEquipoSeleccionado,
-            onTipoEquipoSeleccionado = viewModel::onTipoEquipoSeleccionado,
-            onDevanadoSeleccionado = viewModel::onDevanadoSeleccionado,
-            onTensionSeleccionada = viewModel::onTensionSeleccionada,
-            onLectura1MinCambia = viewModel::onLectura1MinCambia,
-            onLectura10MinCambia = viewModel::onLectura10MinCambia,
-            onObservacionesCambia = viewModel::onObservacionesCambia,
-            onRegistrar = {
-                if (viewModel.onRegistrarProtocolo()) {
-                    onVerComprobante(1L)
-                }
-            },
-            onLimpiar = { mostrarDialogoLimpiar = true },
-            onAbrirMenu = { scope.launch { drawerState.open() } },
-            snackbarHostState = snackbarHostState
-        )
     }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FormularioProtocoloContent(
-    uiState: FormularioProtocoloUiState,
-    onTagEquipoSeleccionado: (String) -> Unit,
-    onTipoEquipoSeleccionado: (TipoEquipoOption) -> Unit,
-    onDevanadoSeleccionado: (DevanadoOption) -> Unit,
-    onTensionSeleccionada: (String) -> Unit,
-    onLectura1MinCambia: (String) -> Unit,
-    onLectura10MinCambia: (String) -> Unit,
-    onObservacionesCambia: (String) -> Unit,
-    onRegistrar: () -> Unit,
-    onLimpiar: () -> Unit,
-    onAbrirMenu: () -> Unit = {},
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
-) {
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("Protocolo Terreno: ${uiState.tagEquipo}") },
-                navigationIcon = {
-                    IconButton(onClick = onAbrirMenu) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_menu),
-                            contentDescription = "Menú"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
+            CenterAlignedTopAppBar(
+                title = { Text("REGISTRO FT-03: ${uiState.otNumero}", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        }
     ) { innerPadding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
+                .padding(Dimens.espacioPantalla),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            ImagenEncabezado(
-                imagen = R.drawable.banner_registro,
-                descripcion = "Banner Induztek",
-                titulo = "Protocolo de Mantenimiento",
-                subtitulo = "Planta Lampa - Envasadora del Pacífico"
-            )
 
-            Column(
-                modifier = Modifier.padding(Dimens.espacioPantalla),
-                verticalArrangement = Arrangement.spacedBy(Dimens.espacioMedio)
-            ) {
-                // Sección 1: Selección de Equipo e Instalación
-                TarjetaSeccion(titulo = "Identificación del Equipo") {
-                    var expandidoTag by remember { mutableStateOf(false) }
-
-                    ExposedDropdownMenuBox(
-                        expanded = expandidoTag,
-                        onExpandedChange = { expandidoTag = it }
+            if (esCliente) {
+                Text(
+                    text = "Modo de solo lectura. Los clientes no pueden registrar protocolos.",
+                    color = ErrorColor,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            } else if (tecnicoSinAsignaciones) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        OutlinedTextField(
-                            value = uiState.tagEquipo,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Seleccionar Equipo (TAG)") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandidoTag) },
-                            shape = EstilosCampo.forma,
-                            colors = EstilosCampo.colores(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        Text(
+                            "SIN INSTALACIONES ASIGNADAS",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
-                        ExposedDropdownMenu(
-                            expanded = expandidoTag,
-                            onDismissRequest = { expandidoTag = false }
-                        ) {
-                            uiState.tagsDisponibles.forEach { tag ->
-                                DropdownMenuItem(
-                                    text = { Text(tag) },
-                                    onClick = {
-                                        onTagEquipoSeleccionado(tag)
-                                        expandidoTag = false
-                                    }
-                                )
+                        Text(
+                            "Solicita al Jefe Técnico que asigne tus instalaciones para habilitar el registro de protocolos.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            // SECCIÓN 1: DATOS DE LA VISITA
+            TarjetaSeccion(titulo = "1. DATOS DE LA VISITA") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = uiState.fechaVisita, onValueChange = {}, label = { Text("Fecha") }, readOnly = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = uiState.horaInicio, onValueChange = {}, label = { Text("Hora Inicio") }, readOnly = true, modifier = Modifier.weight(1f))
+                }
+                SelectorDesplegable(
+                    label = "Cliente", opciones = uiState.clientesDisponibles, seleccionActual = uiState.clienteNombre, onSeleccion = { viewModel.onClienteSeleccionado(it) }, habilitado = !esCliente && !visitaEnCurso
+                )
+                SelectorDesplegable(
+                    label = "Instalación", opciones = uiState.instalacionesDisponibles, seleccionActual = uiState.instalacionNombre, onSeleccion = { viewModel.onInstalacionSeleccionada(it) }, habilitado = !esCliente && !visitaEnCurso
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = uiState.tempAmbiente, onValueChange = { viewModel.onTempAmbienteCambia(it) }, label = { Text("T° Amb (°C) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = uiState.humedadPct, onValueChange = { viewModel.onHumedadPctCambia(it) }, label = { Text("Humedad (%) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(value = uiState.tecnicoNombre, onValueChange = {}, label = { Text("Técnico(s)") }, readOnly = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = uiState.ingenieroCargo, onValueChange = {}, label = { Text("Ingeniero") }, readOnly = true, modifier = Modifier.fillMaxWidth())
+                SelectorDesplegable(
+                    label = "Tipo de visita",
+                    opciones = listOf("SOLO_PRUEBAS", "PRUEBAS_Y_MANTENIMIENTO"),
+                    seleccionActual = uiState.tipoVisita,
+                    onSeleccion = { viewModel.onTipoVisitaCambia(it) },
+                    habilitado = !esCliente && !visitaEnCurso
+                )
+                if (uiState.tipoVisita == "PRUEBAS_Y_MANTENIMIENTO") {
+                    OutlinedTextField(
+                        value = uiState.descripcionMantenimiento,
+                        onValueChange = { viewModel.onDescripcionMantenimientoCambia(it) },
+                        label = { Text("Descripción del mantenimiento *") },
+                        enabled = !esCliente && !visitaEnCurso,
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                }
+            }
+
+            TarjetaSeccion(titulo = "REALIZACIÓN DEL ENSAYO") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Pruebas realizadas", fontWeight = FontWeight.SemiBold)
+                    Switch(
+                        checked = uiState.pruebaRealizada,
+                        onCheckedChange = { viewModel.onPruebaRealizadaCambia(it) },
+                        enabled = !esCliente
+                    )
+                }
+                if (!uiState.pruebaRealizada) {
+                    OutlinedTextField(
+                        value = uiState.motivoNoRealizada,
+                        onValueChange = { viewModel.onMotivoNoRealizadaCambia(it) },
+                        label = { Text("Motivo por el que no se realizó *") },
+                        enabled = !esCliente,
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                }
+            }
+
+            // SECCIÓN 2: DATOS DEL EQUIPO
+            TarjetaSeccion(titulo = "2. DATOS DEL EQUIPO (PLACA)") {
+                SelectorDesplegable(
+                    label = "Seleccionar Equipo (TAG)", opciones = uiState.tagsDisponibles, seleccionActual = uiState.tagEquipo, onSeleccion = { viewModel.onTagEquipoSeleccionado(it) }, habilitado = !esCliente
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = uiState.tipoEquipo, onValueChange = {}, label = { Text("Tipo") }, readOnly = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = uiState.marcaEquipo, onValueChange = {}, label = { Text("Marca") }, readOnly = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = uiState.modeloEquipo, onValueChange = {}, label = { Text("Modelo") }, readOnly = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = uiState.potenciaKva, onValueChange = {}, label = { Text("Potencia") }, readOnly = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = uiState.numeroSerieEquipo, onValueChange = {}, label = { Text("Nº Serie") }, readOnly = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = uiState.anoFabricacion, onValueChange = {}, label = { Text("Año") }, readOnly = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = uiState.tensiones, onValueChange = {}, label = { Text("Tensiones") }, readOnly = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = "${uiState.tapPosition} / ${uiState.conexionGrupo}", onValueChange = {}, label = { Text("Tap / Grupo") }, readOnly = true, modifier = Modifier.weight(1f))
+                }
+            }
+
+            // MEDICIONES DINÁMICAS
+            if (uiState.pruebaRealizada) when (uiState.tipoEquipo) {
+                "Transformador" -> {
+                    // SECCIÓN 3: AISLACIÓN
+                    TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
+                        val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        uiState.aislacionFilas.forEachIndexed { idx, fila ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
 
-                    Text(
-                        text = "Tipo de Equipo:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    GrupoRadio(
-                        opciones = TipoEquipoOption.entries,
-                        seleccionada = uiState.tipoEquipo,
-                        onSeleccionar = onTipoEquipoSeleccionado,
-                        textoDe = { it.etiqueta }
-                    )
-                }
+                    // SECCIÓN 4: TTR
+                    TarjetaSeccion(titulo = "4. RELACIÓN DE TRANSFORMACIÓN (TTR)") {
+                        val opcionesInstTtr = uiState.instrumentosDisponiblesTtr.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento TTR", opciones = opcionesInstTtr, seleccionActual = "${uiState.instrumentoTtrSeleccionado.modelo} (${uiState.instrumentoTtrSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoTtrSeleccionado(it) }, habilitado = !esCliente)
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                // Sección 2: Mediciones de Resistencia de Aislamiento
-                TarjetaSeccion(titulo = "Prueba de Aislamiento (RN-05)") {
-                    Text(
-                        text = "Devanado / Elemento a probar:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    GrupoRadio(
-                        opciones = DevanadoOption.entries,
-                        seleccionada = uiState.devanadoSeleccionado,
-                        onSeleccionar = onDevanadoSeleccionado,
-                        textoDe = { it.etiqueta }
-                    )
-
-                    CampoTexto(
-                        valor = uiState.lectura1Min,
-                        onValorCambia = onLectura1MinCambia,
-                        etiqueta = "Lectura a 1 Minuto (MΩ)",
-                        icono = R.drawable.ic_persona,
-                        error = uiState.errorLectura1Min,
-                        tipoTeclado = KeyboardType.Number
-                    )
-
-                    CampoTexto(
-                        valor = uiState.lectura10Min,
-                        onValorCambia = onLectura10MinCambia,
-                        etiqueta = "Lectura a 10 Minutos (MΩ)",
-                        icono = R.drawable.ic_persona,
-                        error = uiState.errorLectura10Min,
-                        tipoTeclado = KeyboardType.Number
-                    )
-                }
-
-                // Sección 3: Evaluación Automática e Indicadores (RN-06 / RN-09)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(Dimens.espacioMedio),
-                        verticalArrangement = Arrangement.spacedBy(Dimens.espacioChico)
-                    ) {
-                        Text(
-                            text = "Índice de Polarización (IP): %.2f".format(uiState.ipCalculado),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-
-                        val colorEstado = when (uiState.resultadoEvaluado) {
-                            "APROBADO" -> Exito
-                            "OBSERVADO" -> Alerta
-                            "RECHAZADO" -> ErrorColor
-                            else -> Color.Gray
+                        uiState.ttrFilas.forEachIndexed { idx, fila ->
+                            OutlinedTextField(value = fila.relacionMedida, onValueChange = { viewModel.onTtrMedidaCambia(idx, it) }, label = { Text("Fase ${fila.fase} (Teórica: ${fila.relacionTeorica})") }, enabled = !esCliente, modifier = Modifier.fillMaxWidth())
                         }
+                    }
 
-                        Text(
-                            text = "Resultado Evaluado: ${uiState.resultadoEvaluado}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = colorEstado
-                        )
+                    // SECCIÓN 5: DEVANADOS
+                    TarjetaSeccion(titulo = "5. RESISTENCIA DE DEVANADOS") {
+                        val opcionesInstDev = uiState.instrumentosDisponiblesDevanados.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento Micro-ohmímetro", opciones = opcionesInstDev, seleccionActual = "${uiState.instrumentoDevanadosSeleccionado.modelo} (${uiState.instrumentoDevanadosSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoDevanadosSeleccionado(it) }, habilitado = !esCliente)
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        if (uiState.variacionDetectada) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            Text(
-                                text = "⚠️ ALERTA: Variación mayor al 25% respecto a la prueba anterior (RN-09).",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = ErrorColor
+                        uiState.devanadoFilas.forEachIndexed { idx, fila ->
+                            Text("Devanado ${fila.devanado} (${fila.unidad})", fontWeight = FontWeight.Bold)
+                            SelectorDesplegable(
+                                label = "Evaluación manual",
+                                opciones = listOf("APROBADO", "OBSERVADO", "RECHAZADO"),
+                                seleccionActual = fila.resultadoManual,
+                                onSeleccion = { viewModel.onDevanadoResultadoCambia(idx, it) },
+                                habilitado = !esCliente
                             )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(value = fila.faseU, onValueChange = { viewModel.onDevanadoCambia(idx, it, fila.faseV, fila.faseW) }, label = { Text("Fase U") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = fila.faseV, onValueChange = { viewModel.onDevanadoCambia(idx, fila.faseU, it, fila.faseW) }, label = { Text("Fase V") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = fila.faseW, onValueChange = { viewModel.onDevanadoCambia(idx, fila.faseU, fila.faseV, it) }, label = { Text("Fase W") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
 
-                // Sección 4: Observaciones en Terreno
-                TarjetaSeccion(titulo = "Observaciones de Mantenimiento") {
-                    OutlinedTextField(
-                        value = uiState.observaciones,
-                        onValueChange = onObservacionesCambia,
-                        label = { Text("Detalle de inspección o limpieza realizada") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                        shape = EstilosCampo.forma,
-                        colors = EstilosCampo.colores()
-                    )
-                }
-
-                // Botones de Acción
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.espacioMedio)) {
-                    BotonSecundario(
-                        texto = "Limpiar",
-                        onClick = onLimpiar,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BotonPrincipal(
-                        texto = "Guardar",
-                        onClick = onRegistrar,
-                        icono = R.drawable.ic_check,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                if (uiState.registroExitoso) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = ExitoFondo, contentColor = Exito)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(Dimens.espacioMedio),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_check),
-                                contentDescription = null,
-                                tint = Exito,
-                                modifier = Modifier.size(Dimens.tamanoIcono)
-                            )
-                            Text(
-                                text = "Protocolo guardado exitosamente en SQLite local",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = Dimens.espacioChico)
-                            )
+                "Celda MT", "Interruptor" -> {
+                    TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
+                        val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
+                        uiState.aislacionFilas.forEachIndexed { idx, fila ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    TarjetaSeccion(titulo = "3. RESISTENCIA DE CONTACTOS (µΩ)") {
+                        val opcionesInstDev = uiState.instrumentosDisponiblesDevanados.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Micro-ohmímetro", opciones = opcionesInstDev, seleccionActual = "${uiState.instrumentoDevanadosSeleccionado.modelo} (${uiState.instrumentoDevanadosSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoDevanadosSeleccionado(it) }, habilitado = !esCliente)
+                        uiState.contactosFilas.forEachIndexed { idx, fila ->
+                            OutlinedTextField(value = fila.valorMedidoUohm, onValueChange = { viewModel.onContactoMedidoCambia(idx, it) }, label = { Text("${fila.polo} (Máx placa: ${if (fila.valorMaximoPlacaUohm > 0) fila.valorMaximoPlacaUohm else "sin dato"} µΩ)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
 
-                Spacer(Modifier.height(Dimens.espacioGrande))
+                "Cable de poder" -> {
+                    TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
+                        val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
+                        uiState.aislacionFilas.forEachIndexed { idx, fila ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+
+                "Relé de protección" -> {
+                    TarjetaSeccion(titulo = "3. INYECCIÓN SECUNDARIA") {
+                        val opcionesInstRele = uiState.instrumentosDisponiblesRele.map { "${it.modelo} (${it.numeroSerie})" }
+                        SelectorDesplegable(label = "Instrumento de inyección", opciones = opcionesInstRele, seleccionActual = "${uiState.instrumentoReleSeleccionado.modelo} (${uiState.instrumentoReleSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoReleSeleccionado(it) }, habilitado = !esCliente)
+                        uiState.releFilas.forEachIndexed { idx, fila ->
+                            OutlinedTextField(value = fila.corrienteMedidaA, onValueChange = { viewModel.onReleCorrienteMedidaCambia(idx, it) }, label = { Text("Corriente medida (A)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = fila.tiempoMedidoMs, onValueChange = { viewModel.onReleMedicionCambia(idx, it, fila.operaCorrectamente) }, label = { Text("Tiempo Medido (ms) - Esp: ${fila.tiempoEsperadoMs}") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
+                            Text(
+                                "Desviación máxima de corriente/tiempo: ${"%.2f".format(java.util.Locale.ROOT, fila.diferenciaTiempoPct)} %",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = fila.operaCorrectamente == true,
+                                    onClick = { viewModel.onReleOperacionCambia(idx, true) },
+                                    label = { Text("Operó") },
+                                    enabled = !esCliente
+                                )
+                                FilterChip(
+                                    selected = fila.operaCorrectamente == false,
+                                    onClick = { viewModel.onReleOperacionCambia(idx, false) },
+                                    label = { Text("No operó") },
+                                    enabled = !esCliente
+                                )
+                            }
+                        }
+                    }
+                }
             }
+
+            // SECCIÓN 6: OBSERVACIONES
+            TarjetaSeccion(titulo = "6. OBSERVACIONES") {
+                OutlinedTextField(
+                    value = uiState.observaciones,
+                    onValueChange = { viewModel.onObservacionesCambia(it) },
+                    label = { Text("Observaciones de la prueba (ej: fuga de aceite)") },
+                    enabled = !esCliente,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+            }
+
+            // SECCIÓN 7: RECEPCIÓN CLIENTE
+            TarjetaSeccion(titulo = "7. FIRMAS / RECEPCIÓN CLIENTE") {
+                OutlinedTextField(value = uiState.clienteRecibeNombre, onValueChange = { viewModel.onClienteRecibeNombreCambia(it) }, label = { Text("Nombre Receptor *") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = uiState.clienteRecibeRut, onValueChange = { viewModel.onClienteRecibeRutCambia(it) }, label = { Text("RUT Receptor *") }, isError = uiState.errorRutClienteRecibe, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = uiState.clienteRecibeCargo, onValueChange = { viewModel.onClienteRecibeCargoCambia(it) }, label = { Text("Cargo Receptor") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+            }
+
+            if (uiState.mensajeErrorFormulario != null) {
+                Text(uiState.mensajeErrorFormulario!!, color = ErrorColor, fontWeight = FontWeight.Bold)
+            }
+
+            if (usuarioActivo != null && !esCliente) {
+                if (uiState.protocolosPendientesVisita == 0) {
+                    BotonPrincipal(
+                        texto = "Registrar protocolo",
+                        onClick = { viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario) },
+                        modifier = Modifier.fillMaxWidth(),
+                        habilitado = !tecnicoSinAsignaciones
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "VISITA EN PREPARACIÓN · ${uiState.protocolosPendientesVisita} EQUIPO(S)",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                uiState.tagsPendientesVisita.joinToString(" · "),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                "Agrega otro equipo o cierra la visita para registrar los protocolos.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+                BotonPrincipal(
+                    texto = "Agregar equipo a la visita",
+                    onClick = { viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario, agregarAVisita = true) },
+                    modifier = Modifier.fillMaxWidth(),
+                    habilitado = !tecnicoSinAsignaciones
+                )
+                if (uiState.protocolosPendientesVisita > 0) {
+                    BotonPrincipal(
+                        texto = "Cerrar visita y registrar todo",
+                        onClick = { viewModel.cerrarVisita(usuarioActivo.idUsuario) },
+                        modifier = Modifier.fillMaxWidth(),
+                        habilitado = !tecnicoSinAsignaciones
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FormularioProtocoloPreview() {
-    InduztekTheme {
-        FormularioProtocoloContent(
-            uiState = FormularioProtocoloUiState(),
-            onTagEquipoSeleccionado = {},
-            onTipoEquipoSeleccionado = {},
-            onDevanadoSeleccionado = {},
-            onTensionSeleccionada = {},
-            onLectura1MinCambia = {},
-            onLectura10MinCambia = {},
-            onObservacionesCambia = {},
-            onRegistrar = {},
-            onLimpiar = {}
+fun SelectorDesplegable(
+    label: String,
+    opciones: List<String>,
+    seleccionActual: String,
+    onSeleccion: (String) -> Unit,
+    habilitado: Boolean
+) {
+    var expandido by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expandido, onExpandedChange = { if (habilitado) expandido = it }) {
+        OutlinedTextField(
+            value = seleccionActual,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
+        ExposedDropdownMenu(expanded = expandido, onDismissRequest = { expandido = false }) {
+            opciones.forEach { opcion ->
+                DropdownMenuItem(
+                    text = { Text(opcion) },
+                    onClick = { onSeleccion(opcion); expandido = false }
+                )
+            }
+        }
     }
 }

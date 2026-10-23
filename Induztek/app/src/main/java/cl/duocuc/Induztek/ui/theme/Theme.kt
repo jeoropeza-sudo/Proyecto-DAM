@@ -1,17 +1,12 @@
 package cl.duocuc.Induztek.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 // Esquema de Colores para Modo Claro
@@ -24,12 +19,18 @@ private val EsquemaClaro = lightColorScheme(
     onSecondary = SobreSecundarioClaro,
     secondaryContainer = ContenedorSecundarioClaro,
     onSecondaryContainer = SobreContenedorSecundarioClaro,
+    tertiary = TerciarioClaro,
+    onTertiary = SobreTerciarioClaro,
+    tertiaryContainer = ContenedorTerciarioClaro,
+    onTertiaryContainer = SobreContenedorTerciarioClaro,
     background = FondoClaro,
     onBackground = SobreFondoClaro,
     surface = SuperficieClara,
     onSurface = SobreSuperficieClara,
     surfaceVariant = VarianteSuperficieClara,
     onSurfaceVariant = SobreVarianteSuperficieClara,
+    outline = BordeClaro,
+    outlineVariant = VarianteSuperficieClara,
     error = ErrorColor
 )
 
@@ -43,12 +44,18 @@ private val EsquemaOscuro = darkColorScheme(
     onSecondary = SobreSecundarioOscuro,
     secondaryContainer = ContenedorSecundarioOscuro,
     onSecondaryContainer = SobreContenedorSecundarioOscuro,
+    tertiary = TerciarioOscuro,
+    onTertiary = SobreTerciarioOscuro,
+    tertiaryContainer = ContenedorTerciarioOscuro,
+    onTertiaryContainer = SobreContenedorTerciarioOscuro,
     background = FondoOscuro,
     onBackground = SobreFondoOscuro,
     surface = SuperficieOscura,
     onSurface = SobreSuperficieOscura,
     surfaceVariant = VarianteSuperficieOscura,
     onSurfaceVariant = SobreVarianteSuperficieOscura,
+    outline = BordeOscuro,
+    outlineVariant = VarianteSuperficieOscura,
     error = ErrorColor
 )
 
@@ -70,5 +77,4 @@ fun InduztekTheme(
         content = content
     )
 }
-
 

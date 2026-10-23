@@ -18,7 +18,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.painterResource
 import cl.duocuc.Induztek.ui.theme.InduztekTheme
 import cl.duocuc.Induztek.R
 import cl.duocuc.Induztek.ui.theme.Dimens
@@ -44,6 +46,16 @@ fun ImagenEncabezado(
             contentDescription = descripcion,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
+        )
+
+        Image(
+            painter = painterResource(R.drawable.logo_fondo_oscuro),
+            contentDescription = "Induztek Ingeniería SpA",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(Dimens.espacioMedio)
+                .height(54.dp)
         )
 
         // Degradado vertical transparente a oscuro para lectura clara en Terreno
