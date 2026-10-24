@@ -131,7 +131,7 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            Text("DATOS DEL EQUIPO PROBADO", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("DATOS DEL EQUIPO PROBADO", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             FilaComprobante("TAG Equipo", registro.tagEquipo)
             FilaComprobante("Tipo de equipo", registro.tipoEquipo)
             FilaComprobante("Marca / modelo", "${registro.marcaEquipo} / ${registro.modeloEquipo}")
@@ -143,7 +143,7 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            Text("RESULTADO Y CONDICIONES", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("RESULTADO Y CONDICIONES", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             FilaComprobante("Temperatura / Humedad", "${registro.temperaturaC} °C / ${registro.humedadPct} %")
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Resultado Evaluación:", fontWeight = FontWeight.Bold)
@@ -158,7 +158,7 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            Text("MEDICIONES Y RESULTADOS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("MEDICIONES Y RESULTADOS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             if (registro.mediciones.isEmpty()) {
                 Text("No se registraron mediciones: ${registro.observaciones.orEmpty()}")
             } else {
@@ -192,7 +192,7 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            Text("CONSTANCIA DE RECEPCIÓN CLIENTE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("CONSTANCIA DE RECEPCIÓN CLIENTE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             FilaComprobante("Nombre Receptor", registro.receptorNombre)
             FilaComprobante("RUT Receptor", registro.receptorRut)
             FilaComprobante("Cargo Receptor", registro.receptorCargo)
@@ -203,7 +203,7 @@ fun ComprobanteTerrenoScreen(
             }
 
             HorizontalDivider()
-            Text("HISTORIAL DE ESTADOS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("HISTORIAL DE ESTADOS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             registro.historialEstados.forEach { evento ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
@@ -222,7 +222,7 @@ fun ComprobanteTerrenoScreen(
                 estado in setOf(EstadoProtocolo.REGISTRADO_TERRENO, EstadoProtocolo.OBSERVADO)
             ) {
                 HorizontalDivider()
-                Text("REVISIÓN DE INGENIERÍA", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("REVISIÓN DE INGENIERÍA", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 OutlinedTextField(
                     value = motivoRevision,
                     onValueChange = { motivoRevision = it },
@@ -286,7 +286,7 @@ fun ComprobanteTerrenoScreen(
                 ) {
                     Text("ANULAR PROTOCOLO")
                 }
-                mensajeRevision?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                mensajeRevision?.let { Text(it, color = MaterialTheme.colorScheme.onSurface) }
             }
             }
 

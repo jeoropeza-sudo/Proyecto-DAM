@@ -245,7 +245,7 @@ fun FormularioProtocoloScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                 OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
-                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -291,7 +291,7 @@ fun FormularioProtocoloScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                 OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
-                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -312,7 +312,7 @@ fun FormularioProtocoloScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                 OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
-                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }

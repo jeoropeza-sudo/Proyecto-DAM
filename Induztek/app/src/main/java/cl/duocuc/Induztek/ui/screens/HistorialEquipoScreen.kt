@@ -172,7 +172,7 @@ private fun TarjetaHistorialProtocolo(
                     text = numProtocoloText,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = fechaText,

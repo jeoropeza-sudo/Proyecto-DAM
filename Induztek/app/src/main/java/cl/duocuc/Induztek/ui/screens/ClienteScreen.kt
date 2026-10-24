@@ -138,7 +138,7 @@ fun ClienteScreen(
                 )
             }
 
-            Text("CERTIFICADOS Y PROTOCOLOS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("CERTIFICADOS Y PROTOCOLOS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
             if (protocolosVisibles.isEmpty()) {
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -157,7 +157,7 @@ fun ClienteScreen(
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(proto.numeroProtocolo, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Text(proto.numeroProtocolo, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                         Text(proto.fechaHora, style = MaterialTheme.typography.labelSmall)
                                     }
                                     HorizontalDivider(color = MaterialTheme.colorScheme.secondary)

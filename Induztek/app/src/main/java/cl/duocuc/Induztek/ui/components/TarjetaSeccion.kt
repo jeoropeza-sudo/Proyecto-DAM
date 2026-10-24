@@ -52,7 +52,7 @@ fun TarjetaSeccion(
                 Text(
                     text = titulo,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             contenido()

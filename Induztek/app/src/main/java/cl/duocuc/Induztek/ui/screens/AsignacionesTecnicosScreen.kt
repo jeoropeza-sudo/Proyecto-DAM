@@ -198,7 +198,7 @@ fun AsignacionesTecnicosScreen(
                         Text(
                             "Instalaciones disponibles",
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -212,7 +212,7 @@ fun AsignacionesTecnicosScreen(
                             Text(
                                 empresa,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(top = 6.dp)
                             )
