@@ -138,13 +138,13 @@ fun PerfilScreen(
                     } else {
                         launcherPermisoCamara.launch(Permisos.CAMARA)
                     }
-                }) { Text("Cámara") }
+                }) { Text("Cámara", color = MaterialTheme.colorScheme.onSurface) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     mostrarOpcionesFoto = false
                     launcherGaleria.launch("image/*")
-                }) { Text("Galería") }
+                }) { Text("Galería", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     }
@@ -213,7 +213,7 @@ fun PerfilScreen(
             }
             if (permisoCamaraDenegado) {
                 TextButton(onClick = { Permisos.abrirAjustes(context) }) {
-                    Text("Abrir ajustes de cámara")
+                    Text("Abrir ajustes de cámara", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
 

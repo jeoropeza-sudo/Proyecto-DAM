@@ -75,14 +75,14 @@ fun FormularioProtocoloScreen(
     val visitaEnCurso = uiState.protocolosPendientesVisita > 0
 
     LaunchedEffect(uiState.idProtocoloRegistrado) {
-        uiState.idProtocoloRegistrado?.let { idProtocolo ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                !Permisos.tiene(context, Permisos.NOTIFICACIONES)
-            ) {
-                launcherPermisoNotificaciones.launch(Permisos.NOTIFICACIONES)
-            }
-            onVerComprobante(idProtocolo)
+        val idProtocolo = uiState.idProtocoloRegistrado ?: return@LaunchedEffect
+        viewModel.limpiarProtocoloRegistrado()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !Permisos.tiene(context, Permisos.NOTIFICACIONES)
+        ) {
+            launcherPermisoNotificaciones.launch(Permisos.NOTIFICACIONES)
         }
+        onVerComprobante(idProtocolo)
     }
 
     LaunchedEffect(usuarioActivo) {

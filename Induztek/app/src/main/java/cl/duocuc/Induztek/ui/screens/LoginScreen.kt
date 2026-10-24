@@ -203,10 +203,10 @@ fun LoginScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onIrARecuperarClave) {
-                            Text("Recuperar clave")
+                            Text("Recuperar clave", color = MaterialTheme.colorScheme.onSurface)
                         }
                         TextButton(onClick = onIrARegistro) {
-                            Text("Crear cuenta")
+                            Text("Crear cuenta", color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }

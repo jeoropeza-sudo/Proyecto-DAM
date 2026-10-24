@@ -151,7 +151,7 @@ fun RecuperarClaveScreen(
                 onClick = onVolverLogin,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("Volver al Inicio de Sesión")
+                Text("Volver al Inicio de Sesión", color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

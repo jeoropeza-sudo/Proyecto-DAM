@@ -765,16 +765,6 @@ class InduztekDbHelper(context: Context) :
     fun obtenerProtocoloPorId(idProtocolo: Long): ProtocoloTerreno? =
         consultarProtocolos("$SQL_SELECT_PROTOCOLOS WHERE p.$PRT_ID = ?", arrayOf(idProtocolo.toString())).firstOrNull()
 
-    fun listarProtocolosPorEstado(estado: String? = null): List<ProtocoloTerreno> =
-        if (estado.isNullOrBlank()) {
-            consultarProtocolos("$SQL_SELECT_PROTOCOLOS ORDER BY p.$PRT_FECHA DESC", null)
-        } else {
-            consultarProtocolos(
-                "$SQL_SELECT_PROTOCOLOS WHERE p.$PRT_ESTADO = ? ORDER BY p.$PRT_FECHA DESC",
-                arrayOf(estado)
-            )
-        }
-
     fun registrarProtocoloLocal(registro: RegistroProtocolo): Long {
         return registrarProtocolosVisitaLocal(listOf(registro)).firstOrNull() ?: -1L
     }

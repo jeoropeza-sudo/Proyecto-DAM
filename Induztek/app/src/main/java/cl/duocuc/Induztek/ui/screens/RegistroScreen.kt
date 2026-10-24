@@ -217,7 +217,7 @@ fun RegistroScreen(
             }
 
             TextButton(onClick = onVolverLogin) {
-                Text("¿Ya tienes cuenta? Inicia sesión aquí")
+                Text("¿Ya tienes cuenta? Inicia sesión aquí", color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

@@ -38,6 +38,10 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     private var usuarioVisitaPendiente: Long? = null
     private var usuarioCatalogoActual: Usuario? = null
 
+    fun limpiarProtocoloRegistrado() {
+        _uiState.update { it.copy(idProtocoloRegistrado = null) }
+    }
+
     fun inicializarParaUsuario(usuario: Usuario) {
         usuarioCatalogoActual = usuario
         _historial.value = emptyList()
