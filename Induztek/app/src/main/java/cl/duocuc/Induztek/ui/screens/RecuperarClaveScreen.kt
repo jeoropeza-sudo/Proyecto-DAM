@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +31,9 @@ fun RecuperarClaveScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Recuperar Contraseña") },
+                title = {
+                    MarcaCompacta(subtitulo = "Recuperar contraseña", sobreFondoOscuro = true)
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary

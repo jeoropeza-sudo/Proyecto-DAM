@@ -9,7 +9,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
-// Esquema de Colores para Modo Claro
 private val EsquemaClaro = lightColorScheme(
     primary = PrimarioClaro,
     onPrimary = SobrePrimarioClaro,
@@ -34,7 +33,6 @@ private val EsquemaClaro = lightColorScheme(
     error = ErrorColor
 )
 
-// Esquema de Colores para Modo Oscuro
 private val EsquemaOscuro = darkColorScheme(
     primary = PrimarioOscuro,
     onPrimary = SobrePrimarioOscuro,
@@ -77,4 +75,3 @@ fun InduztekTheme(
         content = content
     )
 }
-

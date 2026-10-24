@@ -99,12 +99,6 @@ fun LoginScreen(
                     .size(190.dp)
                     .padding(bottom = 12.dp)
             )
-            Text(
-                text = "ENSAYOS ELÉCTRICOS · TERRENO",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
-                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
-            )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -125,11 +119,7 @@ fun LoginScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = "Ingresa a tu espacio de trabajo",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
                     }
 
                     OutlinedTextField(
@@ -285,11 +275,6 @@ fun LoginScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Aplicación local · Información almacenada en este dispositivo",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-            )
         }
     }
 }

@@ -40,6 +40,7 @@ import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,14 +86,7 @@ fun AsignacionesTecnicosScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("ASIGNACIÓN DE TERRENO", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Gestión de técnicos e instalaciones",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
-                        )
-                    }
+                    MarcaCompacta(subtitulo = "Asignación de terreno", sobreFondoOscuro = true)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,

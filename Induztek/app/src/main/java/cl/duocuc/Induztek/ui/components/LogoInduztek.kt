@@ -14,7 +14,7 @@ fun LogoInduztek(
 ) {
     Image(
         painter = painterResource(
-            if (sobreFondoOscuro) R.drawable.logo_fondo_oscuro else R.drawable.logo_fondo_claro
+            if (sobreFondoOscuro) R.drawable.logo_fondo_negro else R.drawable.logo_fondo_blanco
         ),
         contentDescription = "Induztek Ingeniería SpA",
         modifier = modifier,

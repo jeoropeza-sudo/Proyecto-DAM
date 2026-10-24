@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,7 +22,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.res.painterResource
 import cl.duocuc.Induztek.ui.theme.InduztekTheme
 import cl.duocuc.Induztek.R
 import cl.duocuc.Induztek.ui.theme.Dimens
@@ -33,7 +34,6 @@ fun ImagenEncabezado(
     subtitulo: String,
     modifier: Modifier = Modifier
 ) {
-    // Sombra oscura progresiva (Slate 900 con alpha) para garantizar contraste del texto sobre el banner
     val colorSombra = Color(0xCC0F172A)
 
     Box(
@@ -48,17 +48,22 @@ fun ImagenEncabezado(
             modifier = Modifier.fillMaxSize()
         )
 
-        Image(
-            painter = painterResource(R.drawable.logo_fondo_oscuro),
-            contentDescription = "Induztek Ingeniería SpA",
-            contentScale = ContentScale.Fit,
+        Surface(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(Dimens.espacioMedio)
-                .height(54.dp)
-        )
+                .padding(Dimens.espacioMedio),
+            color = Color(0xB30F2C59),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            MarcaCompacta(
+                subtitulo = "",
+                sobreFondoOscuro = true,
+                colorTexto = Color.White,
+                tamanoIcono = 32.dp,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
 
-        // Degradado vertical transparente a oscuro para lectura clara en Terreno
         Box(
             modifier = Modifier
                 .fillMaxSize()

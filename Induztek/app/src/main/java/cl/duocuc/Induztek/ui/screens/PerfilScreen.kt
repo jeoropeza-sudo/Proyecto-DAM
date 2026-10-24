@@ -2,7 +2,6 @@ package cl.duocuc.Induztek.ui.screens
 
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
@@ -29,7 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -57,14 +55,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import cl.duocuc.Induztek.permisos.Permisos
 import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.BotonSecundario
-import cl.duocuc.Induztek.ui.components.LogoInduztek
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
@@ -77,15 +73,22 @@ fun PerfilScreen(
     onCambiarFotoCamara: (Bitmap) -> Unit,
     onCambiarFotoGaleria: (Uri) -> Unit,
     onCambiarClave: (String, String) -> Boolean,
+    onActualizarPerfil: (String, String) -> Boolean,
     onCerrarSesion: () -> Unit
 ) {
     val context = LocalContext.current
     var mostrarOpcionesFoto by remember { mutableStateOf(false) }
     var mensajePermiso by remember { mutableStateOf<String?>(null) }
     var permisoCamaraDenegado by remember { mutableStateOf(false) }
-    var notificacionesHabilitadas by remember {
-        mutableStateOf(Permisos.notificacionesHabilitadas(context))
+    var editarPerfil by remember { mutableStateOf(false) }
+    var nombreEditado by remember(usuarioActivo?.idUsuario, usuarioActivo?.nombre) {
+        mutableStateOf(usuarioActivo?.nombre.orEmpty())
     }
+    var telefonoEditado by remember(usuarioActivo?.idUsuario, usuarioActivo?.telefono) {
+        mutableStateOf(usuarioActivo?.telefono.orEmpty())
+    }
+    var errorPerfil by remember { mutableStateOf<String?>(null) }
+    var mensajeExitoPerfil by remember { mutableStateOf<String?>(null) }
 
     var mostrarFormularioClave by remember { mutableStateOf(false) }
     var claveActual by remember { mutableStateOf("") }
@@ -112,21 +115,6 @@ fun PerfilScreen(
         } else {
             mensajePermiso = "Se necesita permiso de cámara para tomar una foto. Puedes habilitarlo en Ajustes."
         }
-    }
-
-    val launcherNotificaciones = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { concedido ->
-        notificacionesHabilitadas = concedido && Permisos.notificacionesHabilitadas(context)
-        mensajePermiso = if (notificacionesHabilitadas) {
-            "Notificaciones de estado activadas en este dispositivo."
-        } else {
-            "No se concedió el permiso de notificaciones."
-        }
-    }
-
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        notificacionesHabilitadas = Permisos.notificacionesHabilitadas(context)
     }
 
     val launcherGaleria = rememberLauncherForActivityResult(
@@ -165,7 +153,7 @@ fun PerfilScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    LogoInduztek(sobreFondoOscuro = true, modifier = Modifier.size(54.dp))
+                    MarcaCompacta(subtitulo = "Mi perfil", sobreFondoOscuro = true)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -183,7 +171,6 @@ fun PerfilScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Dimens.espacioMedio)
         ) {
-            // Círculo de Foto de Perfil
             Box(
                 modifier = Modifier
                     .size(120.dp)
@@ -238,58 +225,38 @@ fun PerfilScreen(
                     modifier = Modifier.padding(Dimens.espacioMedio),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Notificaciones de protocolos",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Avisos locales cuando un protocolo se registra, observa o formaliza. Solo se muestran en este dispositivo.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                !Permisos.tiene(context, Permisos.NOTIFICACIONES)
-                            ) {
-                                launcherNotificaciones.launch(Permisos.NOTIFICACIONES)
-                            } else if (!Permisos.notificacionesHabilitadas(context)) {
-                                Permisos.abrirAjustes(context)
-                            } else {
-                                notificacionesHabilitadas = true
-                                mensajePermiso = "Las notificaciones ya están habilitadas en este dispositivo."
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (notificacionesHabilitadas) "Notificaciones activas" else "Activar notificaciones")
-                    }
-                    if (!notificacionesHabilitadas) {
-                        TextButton(onClick = { Permisos.abrirAjustes(context) }) {
-                            Text("Abrir ajustes de notificaciones")
-                        }
-                    }
-                }
-            }
-
-            // Datos de Usuario
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(Dimens.espacioMedio),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = usuarioActivo?.nombre ?: "Usuario Induztek",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("Datos del usuario", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     HorizontalDivider()
 
+                    if (editarPerfil) {
+                        OutlinedTextField(
+                            value = nombreEditado,
+                            onValueChange = { nombreEditado = it; errorPerfil = null; mensajeExitoPerfil = null },
+                            label = { Text("Nombre") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = EstilosCampo.forma,
+                            colors = EstilosCampo.colores()
+                        )
+                        OutlinedTextField(
+                            value = telefonoEditado,
+                            onValueChange = { telefonoEditado = it; errorPerfil = null; mensajeExitoPerfil = null },
+                            label = { Text("Teléfono") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = EstilosCampo.forma,
+                            colors = EstilosCampo.colores()
+                        )
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Nombre:", fontWeight = FontWeight.Bold)
+                            Text(usuarioActivo?.nombre ?: "N/A")
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Teléfono:", fontWeight = FontWeight.Bold)
+                            Text(usuarioActivo?.telefono ?: "N/A")
+                        }
+                    }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("RUT:", fontWeight = FontWeight.Bold)
                         Text(usuarioActivo?.rut ?: "N/A")
@@ -299,12 +266,46 @@ fun PerfilScreen(
                         Text(usuarioActivo?.correo ?: "N/A")
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Teléfono:", fontWeight = FontWeight.Bold)
-                        Text(usuarioActivo?.telefono ?: "N/A")
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Rol Sistema:", fontWeight = FontWeight.Bold)
                         Text(usuarioActivo?.rolCodigo ?: "N/A")
+                    }
+                    if (errorPerfil != null) {
+                        Text(errorPerfil.orEmpty(), color = ErrorColor, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (mensajeExitoPerfil != null) {
+                        Text(mensajeExitoPerfil.orEmpty(), color = Exito, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BotonSecundario(
+                            texto = if (editarPerfil) "Cancelar" else "Editar datos",
+                            onClick = {
+                                if (editarPerfil) {
+                                    nombreEditado = usuarioActivo?.nombre.orEmpty()
+                                    telefonoEditado = usuarioActivo?.telefono.orEmpty()
+                                    errorPerfil = null
+                                }
+                                editarPerfil = !editarPerfil
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (editarPerfil) {
+                            BotonPrincipal(
+                                texto = "Guardar",
+                                onClick = {
+                                    when {
+                                        nombreEditado.isBlank() -> errorPerfil = "Ingresa tu nombre."
+                                        telefonoEditado.isBlank() -> errorPerfil = "Ingresa tu teléfono."
+                                        onActualizarPerfil(nombreEditado, telefonoEditado) -> {
+                                            editarPerfil = false
+                                            errorPerfil = null
+                                            mensajeExitoPerfil = "Datos actualizados."
+                                        }
+                                        else -> errorPerfil = "No se pudieron guardar los datos."
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }

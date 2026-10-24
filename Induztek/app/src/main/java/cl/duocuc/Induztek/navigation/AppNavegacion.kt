@@ -72,7 +72,6 @@ fun AppNavegacion(
             if (mostrarBarraInferior) {
                 NavigationBar {
                     if (!esCliente) {
-                        // VISTA DE TÉCNICOS / INGENIEROS
                         NavigationBarItem(
                             selected = rutaActual == Ruta.Formulario.ruta,
                             onClick = {
@@ -114,7 +113,6 @@ fun AppNavegacion(
                             )
                         }
                     } else {
-                        // VISTA ÚNICA EXCLUSIVA CLIENTE (SOLO MI PORTAL Y MI PERFIL)
                         NavigationBarItem(
                             selected = rutaActual == Ruta.VistaCliente.ruta,
                             onClick = {
@@ -238,6 +236,7 @@ fun AppNavegacion(
                     onCambiarFotoCamara = { foto -> usuariosViewModel.cambiarAvatarDesdeCamara(foto) },
                     onCambiarFotoGaleria = { uri -> usuariosViewModel.cambiarAvatarDesdeGaleria(uri) },
                     onCambiarClave = { claveActual, claveNueva -> usuariosViewModel.cambiarClave(claveActual, claveNueva) },
+                    onActualizarPerfil = { nombre, telefono -> usuariosViewModel.actualizarPerfil(nombre, telefono) },
                     onCerrarSesion = {
                         usuariosViewModel.cerrarSesion()
                         navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }

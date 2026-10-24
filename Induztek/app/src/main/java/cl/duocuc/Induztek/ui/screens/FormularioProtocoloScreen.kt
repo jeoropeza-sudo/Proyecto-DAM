@@ -1,5 +1,8 @@
 package cl.duocuc.Induztek.ui.screens
 
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,12 +38,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.permisos.Permisos
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.components.TarjetaSeccion
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
@@ -55,8 +61,12 @@ fun FormularioProtocoloScreen(
     usuarioActivo: Usuario?,
     onCerrarSesion: () -> Unit
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val launcherPermisoNotificaciones = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
     val esCliente = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)
     val tecnicoSinAsignaciones = usuarioActivo?.rolCodigo.equals(
         Rol.CODIGO_TECNICO,
@@ -65,10 +75,16 @@ fun FormularioProtocoloScreen(
     val visitaEnCurso = uiState.protocolosPendientesVisita > 0
 
     LaunchedEffect(uiState.idProtocoloRegistrado) {
-        uiState.idProtocoloRegistrado?.let(onVerComprobante)
+        uiState.idProtocoloRegistrado?.let { idProtocolo ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !Permisos.tiene(context, Permisos.NOTIFICACIONES)
+            ) {
+                launcherPermisoNotificaciones.launch(Permisos.NOTIFICACIONES)
+            }
+            onVerComprobante(idProtocolo)
+        }
     }
 
-    // 2. AGREGA ESTO: Dispara el filtro matemáticamente basado en el usuario
     LaunchedEffect(usuarioActivo) {
         if (usuarioActivo != null) {
             viewModel.inicializarParaUsuario(usuarioActivo)
@@ -79,7 +95,12 @@ fun FormularioProtocoloScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("REGISTRO FT-03: ${uiState.otNumero}", fontWeight = FontWeight.Bold) },
+                title = {
+                    MarcaCompacta(
+                        subtitulo = "Registro FT-03 · OT ${uiState.otNumero}",
+                        sobreFondoOscuro = true
+                    )
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -127,7 +148,6 @@ fun FormularioProtocoloScreen(
                 }
             }
 
-            // SECCIÓN 1: DATOS DE LA VISITA
             TarjetaSeccion(titulo = "1. DATOS DE LA VISITA") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = uiState.fechaVisita, onValueChange = {}, label = { Text("Fecha") }, readOnly = true, modifier = Modifier.weight(1f))
@@ -151,7 +171,7 @@ fun FormularioProtocoloScreen(
                 OutlinedTextField(value = uiState.ingenieroCargo, onValueChange = {}, label = { Text("Ingeniero") }, readOnly = true, modifier = Modifier.fillMaxWidth())
                 SelectorDesplegable(
                     label = "Tipo de visita",
-                    opciones = listOf("SOLO_PRUEBAS", "PRUEBAS_Y_MANTENIMIENTO"),
+                    opciones = listOf("SOLO PRUEBAS", "PRUEBAS Y MANTENIMIENTO"),
                     seleccionActual = uiState.tipoVisita,
                     onSeleccion = { viewModel.onTipoVisitaCambia(it) },
                     habilitado = !esCliente && !visitaEnCurso
@@ -192,7 +212,6 @@ fun FormularioProtocoloScreen(
                 }
             }
 
-            // SECCIÓN 2: DATOS DEL EQUIPO
             TarjetaSeccion(titulo = "2. DATOS DEL EQUIPO (PLACA)") {
                 SelectorDesplegable(
                     label = "Seleccionar Equipo (TAG)", opciones = uiState.tagsDisponibles, seleccionActual = uiState.tagEquipo, onSeleccion = { viewModel.onTagEquipoSeleccionado(it) }, habilitado = !esCliente
@@ -215,10 +234,8 @@ fun FormularioProtocoloScreen(
                 }
             }
 
-            // MEDICIONES DINÁMICAS
             if (uiState.pruebaRealizada) when (uiState.tipoEquipo) {
                 "Transformador" -> {
-                    // SECCIÓN 3: AISLACIÓN
                     TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
                         val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
                         SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
@@ -233,7 +250,6 @@ fun FormularioProtocoloScreen(
                         }
                     }
 
-                    // SECCIÓN 4: TTR
                     TarjetaSeccion(titulo = "4. RELACIÓN DE TRANSFORMACIÓN (TTR)") {
                         val opcionesInstTtr = uiState.instrumentosDisponiblesTtr.map { "${it.modelo} (${it.numeroSerie})" }
                         SelectorDesplegable(label = "Instrumento TTR", opciones = opcionesInstTtr, seleccionActual = "${uiState.instrumentoTtrSeleccionado.modelo} (${uiState.instrumentoTtrSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoTtrSeleccionado(it) }, habilitado = !esCliente)
@@ -244,7 +260,6 @@ fun FormularioProtocoloScreen(
                         }
                     }
 
-                    // SECCIÓN 5: DEVANADOS
                     TarjetaSeccion(titulo = "5. RESISTENCIA DE DEVANADOS") {
                         val opcionesInstDev = uiState.instrumentosDisponiblesDevanados.map { "${it.modelo} (${it.numeroSerie})" }
                         SelectorDesplegable(label = "Instrumento Micro-ohmímetro", opciones = opcionesInstDev, seleccionActual = "${uiState.instrumentoDevanadosSeleccionado.modelo} (${uiState.instrumentoDevanadosSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoDevanadosSeleccionado(it) }, habilitado = !esCliente)
@@ -333,7 +348,6 @@ fun FormularioProtocoloScreen(
                 }
             }
 
-            // SECCIÓN 6: OBSERVACIONES
             TarjetaSeccion(titulo = "6. OBSERVACIONES") {
                 OutlinedTextField(
                     value = uiState.observaciones,
@@ -345,7 +359,6 @@ fun FormularioProtocoloScreen(
                 )
             }
 
-            // SECCIÓN 7: RECEPCIÓN CLIENTE
             TarjetaSeccion(titulo = "7. FIRMAS / RECEPCIÓN CLIENTE") {
                 OutlinedTextField(value = uiState.clienteRecibeNombre, onValueChange = { viewModel.onClienteRecibeNombreCambia(it) }, label = { Text("Nombre Receptor *") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = uiState.clienteRecibeRut, onValueChange = { viewModel.onClienteRecibeRutCambia(it) }, label = { Text("RUT Receptor *") }, isError = uiState.errorRutClienteRecibe, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())

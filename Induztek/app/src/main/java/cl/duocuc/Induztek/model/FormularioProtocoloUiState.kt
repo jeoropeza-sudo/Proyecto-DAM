@@ -13,7 +13,6 @@ data class InstrumentoItem(
     val fechaUltimaCalibracion: String = ""
 )
 
-// MEDICIONES TRANSFORMADOR Y CABLES (RN-06)
 data class MedicionAislacionUiState(
     val devanado: String,
     val tensionPrueba: String = "5 kV",
@@ -23,7 +22,6 @@ data class MedicionAislacionUiState(
     val resultado: String = "PENDIENTE"
 )
 
-// MEDICIONES TTR TRANSFORMADOR (RN-07)
 data class MedicionTtrUiState(
     val fase: String,
     val relacionTeorica: Double = 30.00,
@@ -32,7 +30,6 @@ data class MedicionTtrUiState(
     val resultado: String = "PENDIENTE"
 )
 
-// MEDICIONES DEVANADOS TRANSFORMADOR (RN-08c)
 data class MedicionDevanadoUiState(
     val devanado: String,
     val faseU: String = "",
@@ -42,7 +39,6 @@ data class MedicionDevanadoUiState(
     val resultadoManual: String = "PENDIENTE"
 )
 
-// MEDICIONES RESISTENCIA DE CONTACTOS - INTERRUPTOR / CELDA MT (RN-08)
 data class MedicionContactosUiState(
     val polo: String,
     val valorMaximoPlacaUohm: Double = 60.0,
@@ -51,7 +47,6 @@ data class MedicionContactosUiState(
     val resultado: String = "PENDIENTE"
 )
 
-// MEDICIONES INYECCIÓN SECUNDARIA - RELÉ DE PROTECCIÓN (RN-08b)
 data class MedicionReleUiState(
     val funcion: String = "50/51 Sobrecorriente",
     val corrienteAjusteA: String = "5.0",
@@ -64,7 +59,6 @@ data class MedicionReleUiState(
 )
 
 data class FormularioProtocoloUiState(
-    // 1. Datos de la Visita
     val idVisita: Long = 1L,
     val idEmpresaSeleccionada: Long = 0L,
     val otNumero: String = "2026-1187",
@@ -84,11 +78,10 @@ data class FormularioProtocoloUiState(
     val esMedicionPosterior: Boolean = false,
     val instrumentosDisponibles: List<String> = emptyList(),
 
-    // 2. Datos del Equipo
     val idEquipo: Long = 1L,
     val tagEquipo: String = "TR-01",
     val tagsDisponibles: List<String> = emptyList(),
-    val tipoEquipo: String = "Transformador", // Transformador, Celda MT, Interruptor, Cable de poder, Relé de protección
+    val tipoEquipo: String = "Transformador",
     val clasificacionEquipo: String = "PRIMARIO",
     val marcaEquipo: String = "Rhona",
     val modeloEquipo: String = "TR-1",
@@ -99,7 +92,6 @@ data class FormularioProtocoloUiState(
     val tapPosition: String = "3",
     val conexionGrupo: String = "Dyn11",
 
-    // Instrumentos (RN-11 / RN-12)
     val instrumentoAislacionSeleccionado: InstrumentoItem = InstrumentoItem(1L, "Megger MIT525", "MIT-0045821", "15/03/2027"),
     val instrumentosDisponiblesAislacion: List<InstrumentoItem> = listOf(
         InstrumentoItem(1L, "Megger MIT525", "MIT-0045821", "15/03/2027"),
@@ -120,7 +112,6 @@ data class FormularioProtocoloUiState(
         InstrumentoItem(5L, "Omicron CMC 356", "CMC-HB411", "05/01/2027")
     ),
 
-    // 3. Mediciones por Tipo de Equipo (RN-05)
     val aislacionFilas: List<MedicionAislacionUiState> = listOf(
         MedicionAislacionUiState(devanado = "AT – BT", tensionPrueba = "5 kV"),
         MedicionAislacionUiState(devanado = "AT – T", tensionPrueba = "5 kV"),
@@ -152,13 +143,11 @@ data class FormularioProtocoloUiState(
     val motivoNoRealizada: String = "",
     val observaciones: String = "",
 
-    // 7. Recepción Cliente (RF-08 / HU-08 / RN-03)
     val clienteRecibeNombre: String = "Marcela Fuentes Rojas",
     val clienteRecibeRut: String = "14.226.791-8",
     val clienteRecibeCargo: String = "Jefa de Mantenimiento",
     val errorRutClienteRecibe: Boolean = false,
 
-    // Comparación Histórica y Resultados (RN-09 / RN-10)
     val lecturaAnterior1Min: Double? = 9800.0,
     val variacionDetectada: Boolean = false,
     val variacionPctCalculada: Double = 0.0,

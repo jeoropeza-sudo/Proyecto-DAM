@@ -41,6 +41,7 @@ import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Alerta
 import cl.duocuc.Induztek.ui.theme.Dimens
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
@@ -57,7 +58,7 @@ fun ClienteScreen(
     val historialRaw by viewModel.historial.collectAsState()
 
     var busquedaTag by remember { mutableStateOf("") }
-    var filtroEstadoSeleccionado by remember { mutableStateOf("TODOS") } // TODOS, REGISTRADO_TERRENO, FORMALIZADO
+    var filtroEstadoSeleccionado by remember { mutableStateOf("TODOS") }
 
     LaunchedEffect(usuarioActivo?.idUsuario) {
         usuarioActivo?.let {
@@ -66,7 +67,6 @@ fun ClienteScreen(
         }
     }
 
-    // RN-19: Enmascaramiento y filtrado por cliente
     val protocolosVisibles = historialRaw.filter { proto ->
         val st = EstadoProtocolo.desdeCodigo(proto.estado)
         val coincideVisibilidad = st != EstadoProtocolo.BORRADOR && st != EstadoProtocolo.ANULADO
@@ -83,10 +83,10 @@ fun ClienteScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("PORTAL DE CLIENTES", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(usuarioActivo?.nombre ?: "Empresa Cliente", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
-                    }
+                    MarcaCompacta(
+                        subtitulo = "Portal de clientes · ${usuarioActivo?.nombre ?: "Empresa Cliente"}",
+                        sobreFondoOscuro = true
+                    )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -112,7 +112,6 @@ fun ClienteScreen(
                 }
             }
 
-            // BARRA DE BÚSQUEDA
             OutlinedTextField(
                 value = busquedaTag,
                 onValueChange = { busquedaTag = it },
@@ -121,7 +120,6 @@ fun ClienteScreen(
                 shape = EstilosCampo.forma
             )
 
-            // FILTROS CHIPS POR ESTADO
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = filtroEstadoSeleccionado == "TODOS",

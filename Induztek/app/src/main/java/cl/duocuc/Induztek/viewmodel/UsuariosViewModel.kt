@@ -106,6 +106,14 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         return exito
     }
 
+    fun actualizarPerfil(nombre: String, telefono: String): Boolean {
+        val usuario = _usuarioActual.value ?: return false
+        if (!db.actualizarPerfilUsuario(usuario.idUsuario, nombre, telefono)) return false
+        val usuarioActualizado = db.buscarPorIdUsuario(usuario.idUsuario) ?: return false
+        _usuarioActual.value = usuarioActualizado
+        return true
+    }
+
     fun obtenerPreguntaSeguridad(correo: String): String? = db.obtenerPreguntaSeguridad(correo)
 
     fun recuperarClaveConRespuesta(correo: String, respuesta: String, nuevaClave: String): Boolean {

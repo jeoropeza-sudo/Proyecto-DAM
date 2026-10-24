@@ -140,7 +140,6 @@ fun RegistroScreen(
                 shape = EstilosCampo.forma
             )
 
-            // COMBO BOX SELECTOR DE PREGUNTA DE SEGURIDAD
             ExposedDropdownMenuBox(
                 expanded = expandidoPregunta,
                 onExpandedChange = { expandidoPregunta = it },

@@ -39,6 +39,7 @@ import cl.duocuc.Induztek.model.EstadoProtocolo
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.ui.components.LogoInduztek
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
@@ -63,14 +64,7 @@ fun ComprobanteTerrenoScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LogoInduztek(sobreFondoOscuro = true, modifier = Modifier.size(40.dp))
-                        Text(
-                            "ACTA DE TERRENO",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
+                    MarcaCompacta(subtitulo = "Acta de terreno", sobreFondoOscuro = true)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary)
             )
@@ -113,7 +107,6 @@ fun ComprobanteTerrenoScreen(
 
                     HorizontalDivider()
 
-                    // ESTADO CLIENTE VISIBLE
                     Surface(
                         color = MaterialTheme.colorScheme.tertiaryContainer,
                         shape = RoundedCornerShape(4.dp)
@@ -129,7 +122,6 @@ fun ComprobanteTerrenoScreen(
                 }
             }
 
-            // DATOS DE LA VISITA Y CLIENTE
             FilaComprobante("Empresa Cliente", registro.clienteNombre)
             FilaComprobante("Instalación", registro.instalacionNombre)
             FilaComprobante("Tipo de visita", registro.tipoVisita)
@@ -139,7 +131,6 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            // DATOS DEL EQUIPO
             Text("DATOS DEL EQUIPO PROBADO", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             FilaComprobante("TAG Equipo", registro.tagEquipo)
             FilaComprobante("Tipo de equipo", registro.tipoEquipo)
@@ -152,7 +143,6 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            // CONDICIONES Y RESULTADO GLOBAL
             Text("RESULTADO Y CONDICIONES", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             FilaComprobante("Temperatura / Humedad", "${registro.temperaturaC} °C / ${registro.humedadPct} %")
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -202,7 +192,6 @@ fun ComprobanteTerrenoScreen(
 
             HorizontalDivider()
 
-            // CONSTANCIA DE RECEPCIÓN (RF-08)
             Text("CONSTANCIA DE RECEPCIÓN CLIENTE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             FilaComprobante("Nombre Receptor", registro.receptorNombre)
             FilaComprobante("RUT Receptor", registro.receptorRut)

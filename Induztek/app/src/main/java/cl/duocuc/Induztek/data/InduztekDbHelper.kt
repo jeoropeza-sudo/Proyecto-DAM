@@ -168,11 +168,9 @@ class InduztekDbHelper(context: Context) :
         db.execSQL("CREATE TABLE $TABLA_HISTORIAL_ESTADO (id_historial INTEGER PRIMARY KEY AUTOINCREMENT, id_protocolo INTEGER NOT NULL, estado_anterior TEXT, estado_nuevo TEXT NOT NULL, id_usuario INTEGER NOT NULL, fecha_hora TEXT NOT NULL, motivo TEXT)")
         crearTablasProtocoloExtendido(db)
 
-        // 1. CARGA DE ROLES
         db.execSQL("INSERT INTO $TABLA_ROL ($ROL_ID, $ROL_CODIGO, $ROL_NOMBRE) VALUES (1, 'TECNICO', 'Técnico de Terreno'), (2, 'INGENIERO', 'Ingeniero de Pruebas'), (3, 'JEFE_TECNICO', 'Jefe Técnico'), (4, 'CLIENTE', 'Usuario Cliente')")
         insertarEmpresasIniciales(db)
 
-        // 2. PERSONAL INDUZTEK (Técnicos, Ingenieros, Jefe Técnico)
         db.execSQL("INSERT INTO $TABLA_USUARIO ($USR_ID, $USR_ROL_ID, $USR_RUT, $USR_NOMBRE, $USR_CORREO, $USR_TELEFONO, $USR_PASS, $USR_ACTIVO, $USR_CLIENTE_ID, $USR_PREGUNTA, $USR_RESPUESTA) VALUES " +
                 "(1, 1, '17.284.519-3', 'Matías Godoy Herrera', 'mgodoy@induztek.ejemplo', '+56900000001', '$CLAVE_DEFAULT_HASH', 1, NULL, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
                 "(2, 1, '19.412.087-7', 'Javiera Tapia Muñoz', 'jtapia@induztek.ejemplo', '+56900000002', '$CLAVE_DEFAULT_HASH', 1, NULL, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
@@ -182,7 +180,6 @@ class InduztekDbHelper(context: Context) :
                 "(6, 2, '16.553.270-8', 'Sebastián Morales Gutiérrez', 'smorales@induztek.ejemplo', '+56900000006', '$CLAVE_DEFAULT_HASH', 1, NULL, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
                 "(7, 3, '13.871.905-7', 'Ricardo Espinoza Lagos', 'respinoza@induztek.ejemplo', '+56900000007', '$CLAVE_DEFAULT_HASH', 1, NULL, '¿Mascota?', '$RESP_DEFAULT_HASH')")
 
-        // 3. USUARIOS CLIENTE
         db.execSQL("INSERT INTO $TABLA_USUARIO ($USR_ID, $USR_ROL_ID, $USR_RUT, $USR_NOMBRE, $USR_CORREO, $USR_TELEFONO, $USR_PASS, $USR_ACTIVO, $USR_CLIENTE_ID, $USR_PREGUNTA, $USR_RESPUESTA) VALUES " +
                 "(8, 4, '14.226.791-8', 'Marcela Fuentes Rojas', 'mfuentes@envpacifico.ejemplo', '+56900000101', '$CLAVE_DEFAULT_HASH', 1, 1, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
                 "(9, 4, '96.731.540-0', 'Jorge Arancibia Leiva', 'jarancibia@svcentral.ejemplo', '+56900000102', '$CLAVE_DEFAULT_HASH', 1, 2, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
@@ -191,14 +188,11 @@ class InduztekDbHelper(context: Context) :
                 "(12, 4, '99.524.170-6', 'Luis Bravo Castillo', 'lbravo@lomasblancas.ejemplo', '+56900000105', '$CLAVE_DEFAULT_HASH', 1, 5, '¿Mascota?', '$RESP_DEFAULT_HASH'), " +
                 "(13, 4, '78.214.635-1', 'Felipe Órdenes Vera', 'fordenes@andesnorte.ejemplo', '+56900000106', '$CLAVE_DEFAULT_HASH', 1, 6, '¿Mascota?', '$RESP_DEFAULT_HASH')")
 
-        // 4. INSTALACIONES
         db.execSQL("INSERT INTO $TABLA_INSTALACION ($INS_ID, $INS_CLIENTE_ID, $INS_NOMBRE) VALUES (1, 8, 'Planta Lampa'), (2, 9, 'Planta Elevadora Sur'), (3, 10, 'Faena Til Til'), (4, 11, 'Edificio Clínico'), (5, 12, 'Planta Molienda'), (6, 13, 'Site Huechuraba')")
 
-        // 5. TIPOS DE EQUIPO
         db.execSQL("INSERT INTO $TABLA_TIPO_EQUIPO ($TEQ_ID, $TEQ_NOMBRE, $TEQ_CLASIFICACION) VALUES (1, 'Transformador', 'PRIMARIO'), (2, 'Celda MT', 'PRIMARIO'), (3, 'Interruptor', 'PRIMARIO'), (4, 'Cable de poder', 'PRIMARIO'), (5, 'Relé de protección', 'SECUNDARIO')")
         insertarInstrumentosIniciales(db)
 
-        // 6. EQUIPOS
         db.execSQL("INSERT INTO $TABLA_EQUIPO ($EQP_ID, $EQP_INSTALACION, $EQP_TAG, $EQP_TIPO_ID, $EQP_MARCA, $EQP_MODELO, $EQP_SERIE, $EQP_POTENCIA, $EQP_TENSIONES, $EQP_ANO, $EQP_TAP, $EQP_GRUPO, $EQP_MAX_CONTACTO) VALUES " +
                 "(1, 1, 'TR-01', 1, 'Rhona', '1.500 kVA', 'RH-18733', 1500.0, '12 / 0.4 kV', '2012', '3', 'Dyn11', NULL), " +
                 "(2, 1, 'TR-02', 1, 'Rhona', '1.000 kVA', 'RH-21904', 1000.0, '12 / 0.4 kV', '2017', '2', 'Dyn11', NULL), " +
@@ -209,7 +203,6 @@ class InduztekDbHelper(context: Context) :
                 "(7, 6, 'CAB-MT-02', 4, 'Nexans', '15 kV, 3x240 mm2', 'NX-2201-B', 0, '15 kV', '2019', '', '', NULL), " +
                 "(8, 3, 'TR-SS-01', 1, 'ABB', '5.000 kVA', 'ABB-1180442', 5000.0, '23 / 6.6 kV', '2011', '4', 'Dyn11', NULL)")
 
-        // 7. PROTOCOLOS E HISTORIAL (Incluye mediciones de IP que dispararán la alerta de variación al medir TR-01)
         db.execSQL("INSERT INTO $TABLA_PROTOCOLO ($PRT_ID, $PRT_NUMERO, $PRT_UUID, $PRT_VISITA, $PRT_EQUIPO_ID, $PRT_USUARIO_REGISTRA, $PRT_FECHA, $PRT_TEMP, $PRT_HUMEDAD, $PRT_OBSERVACIONES, $PRT_ESTADO, $PRT_RESULTADO_GLOBAL, lectura_1min, lectura_10min) VALUES " +
                 "(1, 'PT-2024-0312', 'uuid-1', 1001, 1, 1, '2024-09-14 10:00:00', 18.0, 55.0, 'Pruebas iniciales', 'FORMALIZADO', 'APROBADO', 12500, 31250), " +
                 "(2, 'PT-2025-0288', 'uuid-2', 1002, 2, 2, '2025-09-13 11:00:00', 21.0, 48.0, 'Pruebas anuales', 'FORMALIZADO', 'APROBADO', 9800, 21560), " +
@@ -464,6 +457,22 @@ class InduztekDbHelper(context: Context) :
     fun actualizarFotoUsuario(idUsuario: Long, fotoBytes: ByteArray): Boolean {
         val valores = ContentValues().apply { put(USR_FOTO, fotoBytes) }
         return writableDatabase.update(TABLA_USUARIO, valores, "$USR_ID = ?", arrayOf(idUsuario.toString())) > 0
+    }
+
+    fun actualizarPerfilUsuario(idUsuario: Long, nombre: String, telefono: String): Boolean {
+        val nombreLimpio = nombre.trim()
+        val telefonoLimpio = telefono.trim()
+        if (nombreLimpio.isBlank() || telefonoLimpio.isBlank()) return false
+        val valores = ContentValues().apply {
+            put(USR_NOMBRE, nombreLimpio)
+            put(USR_TELEFONO, telefonoLimpio)
+        }
+        return writableDatabase.update(
+            TABLA_USUARIO,
+            valores,
+            "$USR_ID = ? AND $USR_ACTIVO = 1",
+            arrayOf(idUsuario.toString())
+        ) == 1
     }
 
     fun buscarPorIdUsuario(idUsuario: Long): Usuario? {
@@ -990,7 +999,6 @@ class InduztekDbHelper(context: Context) :
             }
         }
 
-    // MÉTODO DE PERSISTENCIA REAL DE FORMALIZACIÓN (INGENIERO / JEFE TÉCNICO)
     fun cambiarEstadoProtocolo(idProtocolo: Long, nuevoEstado: String, idUsuario: Long, motivo: String? = null): Boolean {
         val db = writableDatabase
         db.beginTransaction()
@@ -1047,7 +1055,6 @@ class InduztekDbHelper(context: Context) :
         }
     }
 
-    // NUEVA FUNCIÓN AÑADIDA
     fun obtenerUltimaLecturaAnterior(idEquipo: Long, tipoLectura: String): Double? {
         val columna = when (tipoLectura) {
             "LECTURA_1MIN" -> "lectura_1min"

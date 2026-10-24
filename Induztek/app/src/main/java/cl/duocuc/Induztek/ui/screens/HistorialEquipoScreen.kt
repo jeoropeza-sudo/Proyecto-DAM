@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import cl.duocuc.Induztek.model.EstadoProtocolo
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.theme.Alerta
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
@@ -57,7 +58,6 @@ fun HistorialEquipoScreen(
         viewModel.cargarHistorialEquipo(idEquipo, usuarioActivo)
     }
 
-    // RN-19: El usuario cliente NO ve protocolos en BORRADOR ni ANULADO
     val historialFiltrado = if (esUsuarioCliente) {
         historialRaw.filter {
             val st = EstadoProtocolo.desdeCodigo(it.estado)
@@ -71,19 +71,10 @@ fun HistorialEquipoScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "HISTORIAL DE ENSAYOS",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Text(
-                            text = "TAG: ${uiState.tagEquipo} · ${uiState.instalacionNombre}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-                        )
-                    }
+                    MarcaCompacta(
+                        subtitulo = "Historial · ${uiState.tagEquipo} · ${uiState.instalacionNombre}",
+                        sobreFondoOscuro = true
+                    )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -137,12 +128,10 @@ private fun TarjetaHistorialProtocolo(
     esUsuarioCliente: Boolean,
     onClick: () -> Unit
 ) {
-    // Lectura utilizando los campos exactos de tu ProtocoloTerreno.kt
     val numProtocoloText = if (protocolo.numeroProtocolo.isNotBlank()) protocolo.numeroProtocolo else "PT-${protocolo.idProtocolo}"
     val fechaText = if (protocolo.fechaHora.isNotBlank()) protocolo.fechaHora else protocolo.fechaRegistro
     val resultadoEval = if (protocolo.resultadoGlobal.isNotBlank()) protocolo.resultadoGlobal else protocolo.resultadoEvaluado
 
-    // Mapeo de Colores del Resultado Técnico (RN-10)
     val colorResultado = when (resultadoEval.uppercase()) {
         "APROBADO" -> Exito
         "OBSERVADO" -> Alerta
@@ -150,7 +139,6 @@ private fun TarjetaHistorialProtocolo(
         else -> Color.Gray
     }
 
-    // Mapeo de Estado del Protocolo usando protocolo.estado (RN-04 / RN-19)
     val estadoObj = EstadoProtocolo.desdeCodigo(protocolo.estado)
     val textoEstado = if (esUsuarioCliente) estadoObj.obtenerEtiquetaCliente() else estadoObj.etiquetaTecnica
 
@@ -160,7 +148,6 @@ private fun TarjetaHistorialProtocolo(
         else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
     }
 
-    // Datos del Técnico y Ambiental
     val tecnicoResp = if (protocolo.tecnicoNombre.isNotBlank()) protocolo.tecnicoNombre else "Matías Godoy Herrera"
     val tempHumText = if (protocolo.temperaturaC > 0) "${protocolo.temperaturaC} °C / ${protocolo.humedadPct} %" else "19 °C / 60 %"
 
@@ -176,7 +163,6 @@ private fun TarjetaHistorialProtocolo(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Encabezado: Nº Protocolo y Fecha
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -198,7 +184,6 @@ private fun TarjetaHistorialProtocolo(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.secondary)
 
-            // Badges: Resultado Técnico vs Estado Ciclo de Vida
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -249,7 +234,6 @@ private fun TarjetaHistorialProtocolo(
                 }
             }
 
-            // Técnico Responsable y Condiciones Ambientales
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -269,7 +253,6 @@ private fun TarjetaHistorialProtocolo(
                 )
             }
 
-            // Observaciones
             if (!protocolo.observaciones.isNullOrBlank()) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
