@@ -9,7 +9,7 @@ object ValidarRut{
         val cuerpo = limpio.substring(0, limpio.length - 1)
         val dvIngresado = limpio.last()
 
-        if (!cuerpo.all { it.isDigit() }) return false
+        if (!cuerpo.all { it in '0'..'9' }) return false
 
         var suma = 0
         var multiplicador = 2

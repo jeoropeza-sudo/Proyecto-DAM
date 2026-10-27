@@ -24,12 +24,14 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-class InduztekDbHelper(context: Context) :
-    SQLiteOpenHelper(context, NOMBRE_BD, null, VERSION_BD) {
+class InduztekDbHelper(
+    context: Context,
+    nombreBaseDatos: String = NOMBRE_BD
+) : SQLiteOpenHelper(context, nombreBaseDatos, null, VERSION_BD) {
 
     companion object {
         private const val NOMBRE_BD = "induztek.db"
-        private const val VERSION_BD = 17
+        private const val VERSION_BD = 18
 
         private const val TABLA_ROL = "rol"
         private const val TABLA_EMPRESA = "empresa_cliente"
@@ -228,6 +230,8 @@ class InduztekDbHelper(context: Context) :
         asegurarColumna(db, TABLA_PROTOCOLO, "fecha_formalizacion", "TEXT")
         asegurarColumna(db, TABLA_PROTOCOLO, "motivo_observacion", "TEXT")
         asegurarColumna(db, TABLA_PROTOCOLO, PRT_OBSERVACIONES, "TEXT")
+        asegurarColumna(db, TABLA_USUARIO, USR_PREGUNTA, "TEXT")
+        asegurarColumna(db, TABLA_USUARIO, USR_RESPUESTA, "TEXT")
         asegurarColumna(db, TABLA_USUARIO, USR_FOTO, "BLOB")
         db.execSQL(
             "UPDATE $TABLA_PROTOCOLO SET $PRT_OBSERVACIONES = descripcion_mantenimiento " +
