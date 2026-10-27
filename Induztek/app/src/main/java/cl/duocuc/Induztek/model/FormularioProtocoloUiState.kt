@@ -73,7 +73,7 @@ data class FormularioProtocoloUiState(
     val ingenieroCargo: String = "Andrea Contreras Silva",
     val tempAmbiente: String = "19",
     val humedadPct: String = "60",
-    val tipoVisita: String = "SOLO_PRUEBAS",
+    val tipoVisita: String = "SOLO PRUEBAS",
     val descripcionMantenimiento: String = "",
     val esMedicionPosterior: Boolean = false,
     val instrumentosDisponibles: List<String> = emptyList(),
@@ -143,9 +143,9 @@ data class FormularioProtocoloUiState(
     val motivoNoRealizada: String = "",
     val observaciones: String = "",
 
-    val clienteRecibeNombre: String = "Marcela Fuentes Rojas",
-    val clienteRecibeRut: String = "14.226.791-8",
-    val clienteRecibeCargo: String = "Jefa de Mantenimiento",
+    val clienteRecibeNombre: String = "",
+    val clienteRecibeRut: String = "",
+    val clienteRecibeCargo: String = "",
     val errorRutClienteRecibe: Boolean = false,
 
     val lecturaAnterior1Min: Double? = 9800.0,

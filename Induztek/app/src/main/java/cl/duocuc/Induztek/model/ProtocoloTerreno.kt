@@ -17,6 +17,7 @@ data class ProtocoloTerreno(
     val clienteNombre: String = "",
     val instalacionNombre: String = "",
     val tecnicoNombre: String = "",
+    val ingenieroNombre: String = "",
     val fechaHora: String = "",
     val fechaRegistro: String = "",
     val temperaturaC: Double = 0.0,

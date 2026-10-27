@@ -167,8 +167,20 @@ fun FormularioProtocoloScreen(
                         value = uiState.humedadPct, onValueChange = { viewModel.onHumedadPctCambia(it) }, label = { Text("Humedad (%) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
                     )
                 }
-                OutlinedTextField(value = uiState.tecnicoNombre, onValueChange = {}, label = { Text("Técnico(s)") }, readOnly = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = uiState.ingenieroCargo, onValueChange = {}, label = { Text("Ingeniero") }, readOnly = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = uiState.tecnicoNombre,
+                    onValueChange = {},
+                    label = { Text("Técnico responsable") },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = uiState.ingenieroNombre,
+                    onValueChange = viewModel::onIngenieroNombreCambia,
+                    label = { Text("Ingeniero responsable") },
+                    enabled = !esCliente && !visitaEnCurso,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 SelectorDesplegable(
                     label = "Tipo de visita",
                     opciones = listOf("SOLO PRUEBAS", "PRUEBAS Y MANTENIMIENTO"),
@@ -176,7 +188,7 @@ fun FormularioProtocoloScreen(
                     onSeleccion = { viewModel.onTipoVisitaCambia(it) },
                     habilitado = !esCliente && !visitaEnCurso
                 )
-                if (uiState.tipoVisita == "PRUEBAS_Y_MANTENIMIENTO") {
+                if (uiState.tipoVisita.replace('_', ' ') == "PRUEBAS Y MANTENIMIENTO") {
                     OutlinedTextField(
                         value = uiState.descripcionMantenimiento,
                         onValueChange = { viewModel.onDescripcionMantenimientoCambia(it) },

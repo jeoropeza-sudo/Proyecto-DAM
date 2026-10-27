@@ -22,7 +22,6 @@ data class Rol(
     fun esIngeniero(): Boolean = idRol == ID_INGENIERO || codigo.equals(CODIGO_INGENIERO, ignoreCase = true)
     fun esJefeTecnico(): Boolean = idRol == ID_JEFE_TECNICO || codigo.equals(CODIGO_JEFE_TECNICO, ignoreCase = true)
 
-    // Matriz de Permisos del Anexo 7
     fun puedeRegistrarEquipos(): Boolean = !esCliente()
     fun puedeCrearProtocolos(): Boolean = !esCliente()
     fun puedeCerrarVisita(): Boolean = esTecnico() || esIngeniero()

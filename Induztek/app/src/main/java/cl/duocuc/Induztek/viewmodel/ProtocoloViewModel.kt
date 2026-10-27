@@ -69,6 +69,12 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 instrumentosDisponiblesTtr = instrumentosTtr,
                 instrumentosDisponiblesDevanados = instrumentosDevanados,
                 instrumentosDisponiblesRele = instrumentosRele,
+                tecnicoNombre = if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
+                    usuario.nombre
+                } else {
+                    ""
+                },
+                ingenieroNombre = "",
                 instrumentoAislacionSeleccionado = primeroVigente(instrumentosAislacion) ?: it.instrumentoAislacionSeleccionado,
                 instrumentoTtrSeleccionado = primeroVigente(instrumentosTtr) ?: it.instrumentoTtrSeleccionado,
                 instrumentoDevanadosSeleccionado = primeroVigente(instrumentosDevanados) ?: it.instrumentoDevanadosSeleccionado,
@@ -85,6 +91,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     } else {
                         "Sin empresa asignada"
                     },
+                    clienteRecibeNombre = "",
+                    clienteRecibeRut = "",
+                    clienteRecibeCargo = "",
                     idEmpresaSeleccionada = 0L,
                     instalacionesDisponibles = emptyList(),
                     instalacionNombre = "",
@@ -644,6 +653,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun onClienteRecibeCargoCambia(valor: String) = _uiState.update { it.copy(clienteRecibeCargo = valor) }
+    fun onIngenieroNombreCambia(valor: String) =
+        _uiState.update { it.copy(ingenieroNombre = valor, mensajeErrorFormulario = null) }
     fun onObservacionesCambia(valor: String) = _uiState.update { it.copy(observaciones = valor) }
 
     private fun recalcularGlobal() {
@@ -702,7 +713,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
         if (
-            estado.tipoVisita == "PRUEBAS_Y_MANTENIMIENTO" &&
+            estado.tipoVisita.replace('_', ' ') == "PRUEBAS Y MANTENIMIENTO" &&
             estado.descripcionMantenimiento.isBlank()
         ) {
             _uiState.update {
@@ -882,7 +893,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 humedadPct = humedad,
                 observaciones = if (estado.pruebaRealizada) estado.observaciones else
                     "NO REALIZADA: ${estado.motivoNoRealizada}",
-                tipoVisita = estado.tipoVisita,
+                tipoVisita = estado.tipoVisita.replace(' ', '_'),
                 descripcionMantenimiento = estado.descripcionMantenimiento,
                 receptorNombre = estado.clienteRecibeNombre.trim(),
                 receptorRut = estado.clienteRecibeRut.trim(),
@@ -891,7 +902,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 idUsuarioRegistra = idUsuarioActivo,
                 resultadoGlobal = if (estado.pruebaRealizada) estado.resultadoGlobal else "NO REALIZADA",
                 estado = "REGISTRADO_TERRENO",
-                mediciones = mediciones
+                mediciones = mediciones,
+                ingenieroNombre = estado.ingenieroNombre.trim()
             )
 
         if (agregarAVisita) {

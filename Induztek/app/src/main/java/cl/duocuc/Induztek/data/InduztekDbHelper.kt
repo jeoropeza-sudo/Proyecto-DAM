@@ -114,6 +114,7 @@ class InduztekDbHelper(
                     "e.$EQP_GRUPO AS grupo_equipo, " +
                     "i.$INS_NOMBRE AS instalacion_nombre, ec.razon_social AS cliente_nombre, " +
                     "u_tec.$USR_NOMBRE AS tecnico_nombre, v.numero_ot AS numero_ot, " +
+                    "v.ingeniero_nombre AS ingeniero_nombre, " +
                     "COALESCE(v.receptor_nombre, p.receptor_nombre) AS receptor_nombre, " +
                     "COALESCE(v.receptor_rut, p.receptor_rut) AS receptor_rut, " +
                     "COALESCE(v.receptor_cargo, p.receptor_cargo) AS receptor_cargo, " +
@@ -322,8 +323,10 @@ class InduztekDbHelper(
                     "id_tecnico INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), " +
                     "temperatura_c REAL NOT NULL, humedad_pct REAL NOT NULL, tipo_visita TEXT NOT NULL, " +
                     "descripcion_mantenimiento TEXT, receptor_nombre TEXT NOT NULL, receptor_rut TEXT NOT NULL, " +
-                    "receptor_cargo TEXT NOT NULL, fecha_recepcion TEXT NOT NULL, fecha_cierre TEXT)"
+                    "receptor_cargo TEXT NOT NULL, fecha_recepcion TEXT NOT NULL, fecha_cierre TEXT, " +
+                    "ingeniero_nombre TEXT)"
         )
+        asegurarColumna(db, TABLA_VISITA, "ingeniero_nombre", "TEXT")
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS $TABLA_MEDICION (" +
                     "id_medicion INTEGER PRIMARY KEY AUTOINCREMENT, id_protocolo INTEGER NOT NULL " +
@@ -826,6 +829,7 @@ class InduztekDbHelper(
                         it.receptorNombre == visita.receptorNombre &&
                         it.receptorRut == visita.receptorRut &&
                         it.receptorCargo == visita.receptorCargo &&
+                        it.ingenieroNombre == visita.ingenieroNombre &&
                         it.fechaRecepcion == visita.fechaRecepcion &&
                         it.idUsuarioRegistra == visita.idUsuarioRegistra
             }
@@ -908,6 +912,7 @@ class InduztekDbHelper(
                 put("receptor_cargo", visita.receptorCargo)
                 put("fecha_recepcion", visita.fechaRecepcion)
                 put("fecha_cierre", visita.fechaRecepcion)
+                put("ingeniero_nombre", visita.ingenieroNombre.trim())
             }
             val idVisita = db.insert(TABLA_VISITA, null, valoresVisita)
             if (idVisita == -1L) return emptyList()
@@ -1157,6 +1162,7 @@ class InduztekDbHelper(
                     clienteNombre = cursor.getString(cursor.getColumnIndexOrThrow("cliente_nombre")),
                     instalacionNombre = cursor.getString(cursor.getColumnIndexOrThrow("instalacion_nombre")),
                     tecnicoNombre = cursor.getString(cursor.getColumnIndexOrThrow("tecnico_nombre")),
+                    ingenieroNombre = cursor.getString(cursor.getColumnIndexOrThrow("ingeniero_nombre")) ?: "",
                     fechaHora = fechaVal,
                     fechaRegistro = fechaVal,
                     temperaturaC = cursor.getDouble(cursor.getColumnIndexOrThrow(PRT_TEMP)),

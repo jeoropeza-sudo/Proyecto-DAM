@@ -148,7 +148,7 @@ private fun TarjetaHistorialProtocolo(
         else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
     }
 
-    val tecnicoResp = if (protocolo.tecnicoNombre.isNotBlank()) protocolo.tecnicoNombre else "Matías Godoy Herrera"
+    val tecnicoResp = protocolo.tecnicoNombre.ifBlank { "Sin técnico registrado" }
     val tempHumText = if (protocolo.temperaturaC > 0) "${protocolo.temperaturaC} °C / ${protocolo.humedadPct} %" else "19 °C / 60 %"
 
     Surface(

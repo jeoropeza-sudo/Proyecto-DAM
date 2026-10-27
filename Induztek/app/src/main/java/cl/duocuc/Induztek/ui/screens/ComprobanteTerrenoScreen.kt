@@ -124,10 +124,13 @@ fun ComprobanteTerrenoScreen(
 
             FilaComprobante("Empresa Cliente", registro.clienteNombre)
             FilaComprobante("Instalación", registro.instalacionNombre)
-            FilaComprobante("Tipo de visita", registro.tipoVisita)
+            FilaComprobante("Tipo de visita", registro.tipoVisita.replace('_', ' '))
             FilaComprobante("Descripción de mantenimiento", registro.descripcionMantenimiento.orEmpty())
             FilaComprobante("Fecha y Hora", registro.fechaHora)
             FilaComprobante("Técnico a Cargo", registro.tecnicoNombre)
+            if (registro.ingenieroNombre.isNotBlank()) {
+                FilaComprobante("Ingeniero Responsable", registro.ingenieroNombre)
+            }
 
             HorizontalDivider()
 

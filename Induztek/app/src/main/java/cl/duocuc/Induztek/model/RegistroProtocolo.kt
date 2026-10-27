@@ -16,7 +16,8 @@ data class RegistroProtocolo(
     val idUsuarioRegistra: Long,
     val resultadoGlobal: String,
     val estado: String,
-    val mediciones: List<MedicionProtocolo>
+    val mediciones: List<MedicionProtocolo>,
+    val ingenieroNombre: String = ""
 )
 
 data class MedicionProtocolo(
