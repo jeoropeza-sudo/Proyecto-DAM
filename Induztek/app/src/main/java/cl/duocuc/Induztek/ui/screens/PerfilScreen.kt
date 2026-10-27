@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -53,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.permisos.Permisos
@@ -65,6 +67,7 @@ import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
+import cl.duocuc.Induztek.util.ValidarTelefonoChile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -243,9 +246,19 @@ fun PerfilScreen(
                             onValueChange = { telefonoEditado = it; errorPerfil = null; mensajeExitoPerfil = null },
                             label = { Text("Teléfono") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             modifier = Modifier.fillMaxWidth(),
                             shape = EstilosCampo.forma,
-                            colors = EstilosCampo.colores()
+                            colors = EstilosCampo.colores(),
+                            isError = telefonoEditado.isNotBlank() && !ValidarTelefonoChile.esValido(telefonoEditado),
+                            supportingText = {
+                                if (telefonoEditado.isNotBlank() && !ValidarTelefonoChile.esValido(telefonoEditado)) {
+                                    Text(
+                                        "Ingresa un móvil válido: 9XXXXXXXX o +569XXXXXXXX.",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                         )
                     } else {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -295,7 +308,11 @@ fun PerfilScreen(
                                     when {
                                         nombreEditado.isBlank() -> errorPerfil = "Ingresa tu nombre."
                                         telefonoEditado.isBlank() -> errorPerfil = "Ingresa tu teléfono."
+                                        !ValidarTelefonoChile.esValido(telefonoEditado) -> {
+                                            errorPerfil = "Ingresa un teléfono móvil chileno válido."
+                                        }
                                         onActualizarPerfil(nombreEditado, telefonoEditado) -> {
+                                            telefonoEditado = ValidarTelefonoChile.normalizar(telefonoEditado).orEmpty()
                                             editarPerfil = false
                                             errorPerfil = null
                                             mensajeExitoPerfil = "Datos actualizados."

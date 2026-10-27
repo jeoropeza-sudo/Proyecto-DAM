@@ -8,6 +8,7 @@ import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.data.SesionPreferencias
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.util.ValidarTelefonoChile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,11 +64,12 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         preg: String,
         resp: String
     ): Boolean {
+        val telefonoNormalizado = if (tel.isBlank()) "" else ValidarTelefonoChile.normalizar(tel) ?: return false
         val id = db.registrarNuevoUsuario(
             rut = rut,
             nombre = nombre,
             correo = correo,
-            telefono = tel,
+            telefono = telefonoNormalizado,
             clavePlana = clave,
             rolCodigo = rol,
             pregunta = preg,
@@ -108,7 +110,8 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
 
     fun actualizarPerfil(nombre: String, telefono: String): Boolean {
         val usuario = _usuarioActual.value ?: return false
-        if (!db.actualizarPerfilUsuario(usuario.idUsuario, nombre, telefono)) return false
+        val telefonoNormalizado = ValidarTelefonoChile.normalizar(telefono) ?: return false
+        if (!db.actualizarPerfilUsuario(usuario.idUsuario, nombre, telefonoNormalizado)) return false
         val usuarioActualizado = db.buscarPorIdUsuario(usuario.idUsuario) ?: return false
         _usuarioActual.value = usuarioActualizado
         return true

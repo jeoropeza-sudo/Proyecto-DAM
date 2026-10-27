@@ -36,6 +36,7 @@ import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.util.ValidarRut
+import cl.duocuc.Induztek.util.ValidarTelefonoChile
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -128,7 +129,22 @@ fun RegistroScreen(
                 label = { Text("Teléfono de Contacto") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
-                shape = EstilosCampo.forma
+                shape = EstilosCampo.forma,
+                isError = telefono.isNotBlank() && !ValidarTelefonoChile.esValido(telefono),
+                supportingText = {
+                    Text(
+                        if (telefono.isNotBlank() && !ValidarTelefonoChile.esValido(telefono)) {
+                            "Ingresa un móvil válido: 9XXXXXXXX o +569XXXXXXXX."
+                        } else {
+                            "Opcional. Formato móvil chileno: 9XXXXXXXX o +569XXXXXXXX."
+                        },
+                        color = if (telefono.isNotBlank() && !ValidarTelefonoChile.esValido(telefono)) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             )
 
             OutlinedTextField(
@@ -194,12 +210,18 @@ fun RegistroScreen(
                         !ValidarRut.validarRut(rutLimpio) -> {
                             mensajeError = "El RUT ingresado es inválido (Módulo 11)."
                         }
+                        telefono.isNotBlank() && !ValidarTelefonoChile.esValido(telefono) -> {
+                            mensajeError = "Ingresa un teléfono móvil chileno válido."
+                        }
                         else -> {
+                            val telefonoNormalizado = if (telefono.isBlank()) "" else {
+                                ValidarTelefonoChile.normalizar(telefono).orEmpty()
+                            }
                             val exito = viewModel.registrar(
                                 rut = rutLimpio,
                                 nombre = nombre,
                                 correo = correo,
-                                tel = telefono,
+                                tel = telefonoNormalizado,
                                 clave = clave,
                                 rol = "CLIENTE",
                                 preg = preguntaSeleccionada,

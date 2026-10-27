@@ -17,6 +17,7 @@ import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.util.ValidarRut
+import cl.duocuc.Induztek.util.ValidarTelefonoChile
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -442,11 +443,12 @@ class InduztekDbHelper(context: Context) :
         respuestaPlana: String,
         idEmpresaCliente: Long? = null
     ): Long {
+        val telefonoNormalizado = if (telefono.isBlank()) "" else ValidarTelefonoChile.normalizar(telefono) ?: return -1L
         val valores = ContentValues().apply {
             put(USR_RUT, rut.trim())
             put(USR_NOMBRE, nombre.trim())
             put(USR_CORREO, correo.trim().lowercase())
-            put(USR_TELEFONO, telefono.trim())
+            put(USR_TELEFONO, telefonoNormalizado)
             put(USR_PASS, clavePlana.trim().toSha256())
             put(USR_ROL_ID, if (rolCodigo == "TECNICO") 1L else if (rolCodigo == "INGENIERO") 2L else if (rolCodigo == "JEFE_TECNICO") 3L else 4L)
             put(USR_ACTIVO, 1)
@@ -496,11 +498,11 @@ class InduztekDbHelper(context: Context) :
 
     fun actualizarPerfilUsuario(idUsuario: Long, nombre: String, telefono: String): Boolean {
         val nombreLimpio = nombre.trim()
-        val telefonoLimpio = telefono.trim()
-        if (nombreLimpio.isBlank() || telefonoLimpio.isBlank()) return false
+        val telefonoNormalizado = ValidarTelefonoChile.normalizar(telefono) ?: return false
+        if (nombreLimpio.isBlank()) return false
         val valores = ContentValues().apply {
             put(USR_NOMBRE, nombreLimpio)
-            put(USR_TELEFONO, telefonoLimpio)
+            put(USR_TELEFONO, telefonoNormalizado)
         }
         return writableDatabase.update(
             TABLA_USUARIO,
