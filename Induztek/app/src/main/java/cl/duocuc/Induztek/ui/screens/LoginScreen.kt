@@ -54,12 +54,11 @@ import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 @Composable
 fun LoginScreen(
     viewModel: UsuariosViewModel,
-    onLoginExitoso: () -> Unit,
     onIrARegistro: () -> Unit = {},
     onIrARecuperarClave: () -> Unit = {}
 ) {
-    var correo by remember { mutableStateOf("mgodoy@induztek.ejemplo") }
-    var clave by remember { mutableStateOf("1234") }
+    var correo by remember { mutableStateOf("") }
+    var clave by remember { mutableStateOf("") }
     var claveVisible by remember { mutableStateOf(false) }
     var accesosPruebaExpandidos by remember { mutableStateOf(false) }
 
@@ -67,9 +66,7 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
     val autenticar = {
         focusManager.clearFocus()
-        if (viewModel.iniciarSesion(correo, clave) != null) {
-            onLoginExitoso()
-        }
+        viewModel.iniciarSesion(correo, clave)
     }
 
     Box(
@@ -207,68 +204,6 @@ fun LoginScreen(
                         }
                         TextButton(onClick = onIrARegistro) {
                             Text("Crear cuenta", color = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Cuentas para pruebas",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Contraseña general: 1234",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                accesosPruebaExpandidos = !accesosPruebaExpandidos
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (accesosPruebaExpandidos) {
-                                    Icons.Filled.ExpandLess
-                                } else {
-                                    Icons.Filled.ExpandMore
-                                },
-                                contentDescription = if (accesosPruebaExpandidos) {
-                                    "Ocultar cuentas"
-                                } else {
-                                    "Mostrar cuentas"
-                                }
-                            )
-                        }
-                    }
-                    AnimatedVisibility(visible = accesosPruebaExpandidos) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            HorizontalDivider()
-                            Text(
-                                text = "Técnicos\nmgodoy@induztek.ejemplo · jtapia@induztek.ejemplo\ncrondon@induztek.ejemplo · dvalenzuela@induztek.ejemplo\n\n" +
-                                        "Ingenieros\nacontreras@induztek.ejemplo · smorales@induztek.ejemplo\n\n" +
-                                        "Jefe técnico\nrespinoza@induztek.ejemplo\n\n" +
-                                        "Clientes\nmfuentes@envpacifico.ejemplo · jarancibia@svcentral.ejemplo\npnavarro@cerroalto.ejemplo · cmendez@losaromos.ejemplo\nlbravo@lomasblancas.ejemplo · fordenes@andesnorte.ejemplo",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
                         }
                     }
                 }

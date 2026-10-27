@@ -28,7 +28,7 @@ class InduztekDbHelper(context: Context) :
 
     companion object {
         private const val NOMBRE_BD = "induztek.db"
-        private const val VERSION_BD = 13
+        private const val VERSION_BD = 17
 
         private const val TABLA_ROL = "rol"
         private const val TABLA_EMPRESA = "empresa_cliente"
@@ -165,7 +165,6 @@ class InduztekDbHelper(context: Context) :
         db.execSQL("CREATE TABLE $TABLA_TIPO_EQUIPO ($TEQ_ID INTEGER PRIMARY KEY AUTOINCREMENT, $TEQ_NOMBRE TEXT NOT NULL UNIQUE, $TEQ_CLASIFICACION TEXT NOT NULL)")
         db.execSQL("CREATE TABLE $TABLA_EQUIPO ($EQP_ID INTEGER PRIMARY KEY AUTOINCREMENT, $EQP_INSTALACION INTEGER NOT NULL REFERENCES $TABLA_INSTALACION($INS_ID), $EQP_TAG TEXT NOT NULL, $EQP_TIPO_ID INTEGER NOT NULL REFERENCES $TABLA_TIPO_EQUIPO($TEQ_ID), $EQP_MARCA TEXT NOT NULL, $EQP_MODELO TEXT NOT NULL, $EQP_SERIE TEXT NOT NULL, $EQP_POTENCIA REAL, $EQP_TENSIONES TEXT, $EQP_ANO TEXT NOT NULL DEFAULT '', $EQP_TAP TEXT NOT NULL DEFAULT '', $EQP_GRUPO TEXT NOT NULL DEFAULT '', $EQP_MAX_CONTACTO REAL, UNIQUE($EQP_INSTALACION,$EQP_TAG))")
         db.execSQL("CREATE TABLE $TABLA_PROTOCOLO ($PRT_ID INTEGER PRIMARY KEY AUTOINCREMENT, $PRT_NUMERO TEXT NOT NULL UNIQUE, $PRT_UUID TEXT NOT NULL, $PRT_VISITA INTEGER NOT NULL, $PRT_EQUIPO_ID INTEGER NOT NULL REFERENCES $TABLA_EQUIPO($EQP_ID), $PRT_USUARIO_REGISTRA INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), $PRT_FECHA TEXT NOT NULL, $PRT_TEMP REAL NOT NULL, $PRT_HUMEDAD REAL NOT NULL, $PRT_OBSERVACIONES TEXT, $PRT_ESTADO TEXT NOT NULL DEFAULT 'BORRADOR', $PRT_RESULTADO_GLOBAL TEXT NOT NULL DEFAULT 'APROBADO', $PRT_SYNC INTEGER NOT NULL DEFAULT 0, lectura_1min REAL, lectura_10min REAL, id_usuario_formaliza INTEGER, fecha_formalizacion TEXT, motivo_observacion TEXT)")
-        db.execSQL("CREATE TABLE $TABLA_HISTORIAL_ESTADO (id_historial INTEGER PRIMARY KEY AUTOINCREMENT, id_protocolo INTEGER NOT NULL, estado_anterior TEXT, estado_nuevo TEXT NOT NULL, id_usuario INTEGER NOT NULL, fecha_hora TEXT NOT NULL, motivo TEXT)")
         crearTablasProtocoloExtendido(db)
 
         db.execSQL("INSERT INTO $TABLA_ROL ($ROL_ID, $ROL_CODIGO, $ROL_NOMBRE) VALUES (1, 'TECNICO', 'Técnico de Terreno'), (2, 'INGENIERO', 'Ingeniero de Pruebas'), (3, 'JEFE_TECNICO', 'Jefe Técnico'), (4, 'CLIENTE', 'Usuario Cliente')")
@@ -216,6 +215,11 @@ class InduztekDbHelper(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         crearTablasProtocoloExtendido(db)
+        asegurarInstalacionesIniciales(db)
+        db.execSQL(
+            "UPDATE $TABLA_USUARIO SET $USR_PASS = ? WHERE $USR_PASS = ?",
+            arrayOf(CLAVE_DEFAULT_HASH, "1234")
+        )
         if (oldVersion == 12 && newVersion >= 13) {
             migrarAsignacionesExclusivas(db)
         }
@@ -223,6 +227,7 @@ class InduztekDbHelper(context: Context) :
         asegurarColumna(db, TABLA_PROTOCOLO, "fecha_formalizacion", "TEXT")
         asegurarColumna(db, TABLA_PROTOCOLO, "motivo_observacion", "TEXT")
         asegurarColumna(db, TABLA_PROTOCOLO, PRT_OBSERVACIONES, "TEXT")
+        asegurarColumna(db, TABLA_USUARIO, USR_FOTO, "BLOB")
         db.execSQL(
             "UPDATE $TABLA_PROTOCOLO SET $PRT_OBSERVACIONES = descripcion_mantenimiento " +
                     "WHERE $PRT_OBSERVACIONES IS NULL AND descripcion_mantenimiento IS NOT NULL"
@@ -266,7 +271,37 @@ class InduztekDbHelper(context: Context) :
         )
     }
 
+    private fun asegurarInstalacionesIniciales(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS $TABLA_INSTALACION (" +
+                    "$INS_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "$INS_CLIENTE_ID INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), " +
+                    "$INS_NOMBRE TEXT NOT NULL)"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO $TABLA_INSTALACION " +
+                    "($INS_ID, $INS_CLIENTE_ID, $INS_NOMBRE) " +
+                    "SELECT u.$USR_CLIENTE_ID, u.$USR_ID, " +
+                    "CASE u.$USR_CLIENTE_ID " +
+                    "WHEN 1 THEN 'Planta Lampa' " +
+                    "WHEN 2 THEN 'Planta Elevadora Sur' " +
+                    "WHEN 3 THEN 'Faena Til Til' " +
+                    "WHEN 4 THEN 'Edificio Clínico' " +
+                    "WHEN 5 THEN 'Planta Molienda' " +
+                    "WHEN 6 THEN 'Site Huechuraba' " +
+                    "ELSE 'Instalación cliente' END " +
+                    "FROM $TABLA_USUARIO u " +
+                    "WHERE u.$USR_ROL_ID = ${Rol.ID_CLIENTE} AND u.$USR_CLIENTE_ID IS NOT NULL"
+        )
+    }
+
     private fun crearTablasProtocoloExtendido(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS $TABLA_HISTORIAL_ESTADO (" +
+                    "id_historial INTEGER PRIMARY KEY AUTOINCREMENT, id_protocolo INTEGER NOT NULL, " +
+                    "estado_anterior TEXT, estado_nuevo TEXT NOT NULL, id_usuario INTEGER NOT NULL, " +
+                    "fecha_hora TEXT NOT NULL, motivo TEXT)"
+        )
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS $TABLA_INSTRUMENTO (" +
                     "id_instrumento INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL DEFAULT '', " +

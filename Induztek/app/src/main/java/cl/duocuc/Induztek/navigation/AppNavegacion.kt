@@ -151,11 +151,6 @@ fun AppNavegacion(
             composable(Ruta.Login.ruta) {
                 LoginScreen(
                     viewModel = usuariosViewModel,
-                    onLoginExitoso = {
-                        val usuarioLogueado = usuariosViewModel.usuarioActual.value
-                        val destino = if (usuarioLogueado?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) Ruta.VistaCliente.ruta else Ruta.Formulario.ruta
-                        navController.navigate(destino) { popUpTo(Ruta.Login.ruta) { inclusive = true } }
-                    },
                     onIrARegistro = { navController.navigate(Ruta.Registro.ruta) },
                     onIrARecuperarClave = { navController.navigate(Ruta.RecuperarClave.ruta) }
                 )
