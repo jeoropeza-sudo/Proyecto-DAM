@@ -35,8 +35,8 @@ import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
-import cl.duocuc.Induztek.util.ValidarRut
-import cl.duocuc.Induztek.util.ValidarTelefonoChile
+import cl.duocuc.Induztek.model.ValidarRut
+import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -8,7 +8,7 @@ import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.data.SesionPreferencias
 import cl.duocuc.Induztek.model.Usuario
-import cl.duocuc.Induztek.util.ValidarTelefonoChile
+import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

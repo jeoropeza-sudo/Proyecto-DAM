@@ -70,7 +70,7 @@ data class FormularioProtocoloUiState(
     val idInstalacionSeleccionada: Long = 0L,
     val instalacionesDisponibles: List<String> = emptyList(),
     val tecnicoNombre: String = "Matías Godoy Herrera",
-    val ingenieroCargo: String = "Andrea Contreras Silva",
+    val ingenieroNombre: String = "",
     val tempAmbiente: String = "19",
     val humedadPct: String = "60",
     val tipoVisita: String = "SOLO PRUEBAS",

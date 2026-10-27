@@ -1,4 +1,4 @@
-package cl.duocuc.Induztek.util
+package cl.duocuc.Induztek.model
 
 object ValidarRut{
 

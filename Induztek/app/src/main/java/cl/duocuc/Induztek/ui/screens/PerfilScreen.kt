@@ -67,7 +67,7 @@ import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
-import cl.duocuc.Induztek.util.ValidarTelefonoChile
+import cl.duocuc.Induztek.model.ValidarTelefonoChile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

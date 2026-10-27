@@ -17,17 +17,4 @@ data class Rol(
         const val CODIGO_CLIENTE = "CLIENTE"
     }
 
-    fun esCliente(): Boolean = idRol == ID_CLIENTE || codigo.equals(CODIGO_CLIENTE, ignoreCase = true)
-    fun esTecnico(): Boolean = idRol == ID_TECNICO || codigo.equals(CODIGO_TECNICO, ignoreCase = true)
-    fun esIngeniero(): Boolean = idRol == ID_INGENIERO || codigo.equals(CODIGO_INGENIERO, ignoreCase = true)
-    fun esJefeTecnico(): Boolean = idRol == ID_JEFE_TECNICO || codigo.equals(CODIGO_JEFE_TECNICO, ignoreCase = true)
-
-    fun puedeRegistrarEquipos(): Boolean = !esCliente()
-    fun puedeCrearProtocolos(): Boolean = !esCliente()
-    fun puedeCerrarVisita(): Boolean = esTecnico() || esIngeniero()
-    fun puedeFormalizarUObservar(): Boolean = esIngeniero() || esJefeTecnico()
-    fun puedeAnular(): Boolean = esIngeniero() || esJefeTecnico()
-    fun puedeGestionarInstrumentos(): Boolean = esJefeTecnico()
-    fun puedeOtorgarCuentasCliente(): Boolean = esJefeTecnico()
-    fun puedeConsultarCualquierEquipo(): Boolean = !esCliente()
 }

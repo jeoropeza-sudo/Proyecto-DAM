@@ -15,7 +15,7 @@ import cl.duocuc.Induztek.model.RegistroProtocolo
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.notificaciones.NotificacionesLocales
-import cl.duocuc.Induztek.util.ValidarRut
+import cl.duocuc.Induztek.model.ValidarRut
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

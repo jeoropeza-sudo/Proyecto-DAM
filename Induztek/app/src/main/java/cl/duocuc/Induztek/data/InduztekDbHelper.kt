@@ -16,8 +16,8 @@ import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
 import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
-import cl.duocuc.Induztek.util.ValidarRut
-import cl.duocuc.Induztek.util.ValidarTelefonoChile
+import cl.duocuc.Induztek.model.ValidarRut
+import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
