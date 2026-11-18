@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -18,6 +19,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -35,6 +38,7 @@ import cl.duocuc.Induztek.ui.screens.LoginScreen
 import cl.duocuc.Induztek.ui.screens.PerfilScreen
 import cl.duocuc.Induztek.ui.screens.ClienteScreen
 import cl.duocuc.Induztek.ui.screens.AsignacionesTecnicosScreen
+import cl.duocuc.Induztek.ui.screens.SolicitudesVisitaScreen
 import cl.duocuc.Induztek.ui.screens.RecuperarClaveScreen
 import cl.duocuc.Induztek.ui.screens.RegistroScreen
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
@@ -52,6 +56,7 @@ fun AppNavegacion(
 
     val esCliente = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)
     val esJefeTecnico = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
+    val esIngeniero = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
     LaunchedEffect(usuarioActivo, rutaActual) {
         if (usuarioActivo != null && rutaActual == Ruta.Login.ruta) {
             val destino = if (esCliente) Ruta.VistaCliente.ruta else Ruta.Formulario.ruta
@@ -81,24 +86,63 @@ fun AppNavegacion(
                                     restoreState = true
                                 }
                             },
-                            label = { Text("Protocolo", fontWeight = FontWeight.Bold) },
+                            label = {
+                                Text(
+                                    "Protocolo",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
+                                )
+                            },
                             icon = { Icon(Icons.Default.List, contentDescription = "Protocolo") }
                         )
 
                         NavigationBarItem(
                             selected = rutaActual?.startsWith("historial") == true,
                             onClick = {
-                                navController.navigate(Ruta.Historial.crear(1L)) {
+                                navController.navigate(Ruta.Historial.crear(0L)) {
                                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             },
-                            label = { Text("Historial", fontWeight = FontWeight.Bold) },
+                            label = {
+                                Text(
+                                    "Historial",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
+                                )
+                            },
                             icon = { Icon(Icons.Default.AccountBox, contentDescription = "Historial") }
                         )
 
-                        if (esJefeTecnico) {
+                        if (esJefeTecnico || esIngeniero) {
+                            NavigationBarItem(
+                                selected = rutaActual == Ruta.Solicitudes.ruta,
+                                onClick = {
+                                    navController.navigate(Ruta.Solicitudes.ruta) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        "Solicitudes",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                },
+                                icon = { Icon(Icons.Default.EventNote, contentDescription = "Solicitudes de visita") }
+                            )
                             NavigationBarItem(
                                 selected = rutaActual == Ruta.Asignaciones.ruta,
                                 onClick = {
@@ -108,7 +152,16 @@ fun AppNavegacion(
                                         restoreState = true
                                     }
                                 },
-                                label = { Text("Asignaciones", fontWeight = FontWeight.Bold) },
+                                label = {
+                                    Text(
+                                        "Asignar",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                },
                                 icon = { Icon(Icons.Default.Assignment, contentDescription = "Asignaciones") }
                             )
                         }
@@ -125,6 +178,27 @@ fun AppNavegacion(
                             label = { Text("Mi Portal", fontWeight = FontWeight.Bold) },
                             icon = { Icon(Icons.Default.Home, contentDescription = "Portal Cliente") }
                         )
+                        NavigationBarItem(
+                            selected = rutaActual == Ruta.Solicitudes.ruta,
+                            onClick = {
+                                navController.navigate(Ruta.Solicitudes.ruta) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            label = {
+                                Text(
+                                    "Solicitudes",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
+                                )
+                            },
+                            icon = { Icon(Icons.Default.EventNote, contentDescription = "Mis solicitudes de visita") }
+                        )
                     }
 
                     NavigationBarItem(
@@ -136,7 +210,16 @@ fun AppNavegacion(
                                 restoreState = true
                             }
                         },
-                        label = { Text("Mi Perfil", fontWeight = FontWeight.Bold) },
+                        label = {
+                            Text(
+                                "Perfil",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip
+                            )
+                        },
                         icon = { Icon(Icons.Default.Person, contentDescription = "Perfil") }
                     )
                 }
@@ -174,7 +257,7 @@ fun AppNavegacion(
 
             composable(Ruta.Formulario.ruta) {
                 FormularioProtocoloScreen(
-                    onVerHistorial = { navController.navigate(Ruta.Historial.crear(1L)) },
+                    onVerHistorial = { navController.navigate(Ruta.Historial.crear(0L)) },
                     onVerComprobante = { idProtocolo -> navController.navigate(Ruta.Comprobante.crear(idProtocolo)) },
                     viewModel = protocoloViewModel,
                     usuarioActivo = usuarioActivo,
@@ -241,6 +324,13 @@ fun AppNavegacion(
 
             composable(Ruta.Asignaciones.ruta) {
                 AsignacionesTecnicosScreen(
+                    viewModel = protocoloViewModel,
+                    usuarioActivo = usuarioActivo
+                )
+            }
+
+            composable(Ruta.Solicitudes.ruta) {
+                SolicitudesVisitaScreen(
                     viewModel = protocoloViewModel,
                     usuarioActivo = usuarioActivo
                 )

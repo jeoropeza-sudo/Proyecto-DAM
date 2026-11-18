@@ -49,14 +49,14 @@ fun AsignacionesTecnicosScreen(
     viewModel: ProtocoloViewModel,
     usuarioActivo: Usuario?
 ) {
-    val esJefeTecnico = usuarioActivo?.rolCodigo.equals(
+    val puedeAsignar = usuarioActivo?.rolCodigo.equals(
         Rol.CODIGO_JEFE_TECNICO,
         ignoreCase = true
-    )
-    val tecnicos = remember(usuarioActivo?.idUsuario, esJefeTecnico) {
+    ) || usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
+    val tecnicos = remember(usuarioActivo?.idUsuario, puedeAsignar) {
         viewModel.tecnicosParaAsignacion(usuarioActivo)
     }
-    val instalaciones = remember(usuarioActivo?.idUsuario, esJefeTecnico) {
+    val instalaciones = remember(usuarioActivo?.idUsuario, puedeAsignar) {
         viewModel.instalacionesParaAsignacion(usuarioActivo)
     }
     var tecnicoSeleccionadoId by remember { mutableStateOf<Long?>(null) }
@@ -103,13 +103,13 @@ fun AsignacionesTecnicosScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (!esJefeTecnico) {
+            if (!puedeAsignar) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Text(
-                        "Solo el Jefe Técnico puede administrar estas asignaciones.",
+                        "Solo Ingeniería y Jefatura Técnica pueden administrar estas asignaciones.",
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -264,7 +264,7 @@ fun AsignacionesTecnicosScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    habilitado = esJefeTecnico && tecnicoSeleccionadoId != null
+                    habilitado = puedeAsignar && tecnicoSeleccionadoId != null
                 )
             }
         }

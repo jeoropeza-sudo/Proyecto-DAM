@@ -42,6 +42,7 @@ data class ProtocoloTerreno(
 
     val lectura1Min: Double = 0.0,
     val lectura10Min: Double = 0.0,
+    val evidenciaEquipo: ByteArray? = null,
 
     val medicionesAislacion: List<FilaAislacion> = emptyList(),
     val mediciones: List<MedicionProtocolo> = emptyList(),

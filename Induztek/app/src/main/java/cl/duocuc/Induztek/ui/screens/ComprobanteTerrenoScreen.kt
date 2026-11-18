@@ -1,6 +1,7 @@
 package cl.duocuc.Induztek.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -32,12 +34,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duocuc.Induztek.model.EstadoProtocolo
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.model.ProtocoloTerreno
+import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.ui.components.LogoInduztek
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.theme.Dimens
@@ -143,6 +148,18 @@ fun ComprobanteTerrenoScreen(
             FilaComprobante("Potencia", registro.potenciaKva)
             FilaComprobante("Tensiones", registro.tensiones)
             FilaComprobante("Tap / grupo de conexión", "${registro.posicionTap} / ${registro.grupoConexion}")
+            val evidencia = remember(registro.evidenciaEquipo) {
+                registro.evidenciaEquipo?.let { ConvertidorImagen.aBitmap(it)?.asImageBitmap() }
+            }
+            evidencia?.let { imagen ->
+                Text("EVIDENCIA FOTOGRÁFICA", fontWeight = FontWeight.Bold)
+                Image(
+                    bitmap = imagen,
+                    contentDescription = "Evidencia fotográfica del equipo ${registro.tagEquipo}",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                )
+            }
 
             HorizontalDivider()
 

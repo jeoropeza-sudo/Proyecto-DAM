@@ -17,7 +17,8 @@ data class RegistroProtocolo(
     val resultadoGlobal: String,
     val estado: String,
     val mediciones: List<MedicionProtocolo>,
-    val ingenieroNombre: String = ""
+    val ingenieroNombre: String = "",
+    val evidenciaEquipo: ByteArray? = null
 )
 
 data class MedicionProtocolo(
