@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -32,14 +33,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -50,6 +55,7 @@ import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.LogoInduztek
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +84,34 @@ fun InicioScreen(
     var menuEmpresasAbierto by remember { mutableStateOf(false) }
     var mensajeAsociacion by remember { mutableStateOf<String?>(null) }
     var mostrarAsociacion by remember { mutableStateOf(false) }
+    var confirmarAsociacion by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    fun asociarClienteSeleccionado() {
+        val idCliente = idClienteSeleccionado
+        val idEmpresa = idEmpresaSeleccionada
+        if (idCliente == null) {
+            mensajeAsociacion = "Selecciona la cuenta cliente que quieres vincular."
+            return
+        }
+        if (idEmpresa == null) {
+            mensajeAsociacion = "Selecciona la empresa a la que pertenece la cuenta."
+            return
+        }
+
+        val asociada = viewModel.asociarClienteAEmpresa(idCliente, idEmpresa, usuarioActivo)
+        if (asociada) {
+            clientesSinEmpresa = viewModel.clientesSinEmpresa(usuarioActivo)
+            idClienteSeleccionado = clientesSinEmpresa.firstOrNull()?.idUsuario
+            mensajeAsociacion = null
+            scope.launch {
+                snackbarHostState.showSnackbar("La cuenta cliente quedó vinculada a la empresa.")
+            }
+        } else {
+            mensajeAsociacion = "No se vinculó la cuenta. Verifica que el cliente siga pendiente y que la empresa sea correcta."
+        }
+    }
 
     LaunchedEffect(usuarioActivo?.idUsuario) {
         usuarioActivo?.let {
@@ -88,16 +122,17 @@ fun InicioScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 20.dp,
-            bottom = 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = 20.dp,
+                bottom = 80.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Box(
@@ -186,21 +221,20 @@ fun InicioScreen(
                             ),
                             AccionInicio("Historial", "Consultar equipos", Icons.Filled.History, onAbrirHistorial)
                         )
-                        else -> buildList {
+                        puedeAsignar -> buildList {
                             add(AccionInicio("Registrar", "Nuevo protocolo", Icons.Filled.Description, onAbrirProtocolo))
                             add(AccionInicio("Historial", "Consultar equipos", Icons.Filled.History, onAbrirHistorial))
-                            if (puedeAsignar) {
-                                add(AccionInicio("Asignaciones", "Técnicos y equipos", Icons.Filled.Assignment, onAbrirAsignaciones))
-                                add(
-                                    AccionInicio(
-                                        "Vincular cliente",
-                                        "Asociar cuenta a empresa",
-                                        Icons.Filled.PersonAdd,
-                                        { mostrarAsociacion = !mostrarAsociacion }
-                                    )
+                            add(AccionInicio("Asignaciones", "Técnicos y equipos", Icons.Filled.Assignment, onAbrirAsignaciones))
+                            add(
+                                AccionInicio(
+                                    "Vincular cliente",
+                                    "Asociar cuenta a empresa",
+                                    Icons.Filled.PersonAdd,
+                                    { mostrarAsociacion = !mostrarAsociacion }
                                 )
-                            }
+                            )
                         }
+                        else -> emptyList()
                     }
                     acciones.chunked(2).forEachIndexed { filaIndex, fila ->
                         Row(
@@ -235,27 +269,60 @@ fun InicioScreen(
                                 mensaje = mensajeAsociacion,
                                 onMenuClientes = { menuClientesAbierto = it },
                                 onMenuEmpresas = { menuEmpresasAbierto = it },
-                                onSeleccionCliente = { idClienteSeleccionado = it },
-                                onSeleccionEmpresa = { idEmpresaSeleccionada = it },
-                                onAsociar = {
-                                    val idCliente = idClienteSeleccionado
-                                    val idEmpresa = idEmpresaSeleccionada
-                                    val asociada = idCliente != null && idEmpresa != null &&
-                                            viewModel.asociarClienteAEmpresa(idCliente, idEmpresa, usuarioActivo)
-                                    if (asociada) {
-                                        clientesSinEmpresa = viewModel.clientesSinEmpresa(usuarioActivo)
-                                        idClienteSeleccionado = clientesSinEmpresa.firstOrNull()?.idUsuario
-                                        mensajeAsociacion = "Listo: la cuenta quedó vinculada a la empresa."
-                                    } else {
-                                        mensajeAsociacion = "No se pudo asociar. Revisa la selección e inténtalo otra vez."
-                                    }
-                                }
+                                onSeleccionCliente = {
+                                    idClienteSeleccionado = it
+                                    mensajeAsociacion = null
+                                },
+                                onSeleccionEmpresa = {
+                                    idEmpresaSeleccionada = it
+                                    mensajeAsociacion = null
+                                },
+                                onAsociar = { confirmarAsociacion = true }
                             )
                         }
                     }
                 }
             }
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+
+    if (confirmarAsociacion) {
+        val clienteSeleccionado = clientesSinEmpresa.firstOrNull {
+            it.idUsuario == idClienteSeleccionado
+        }
+        val empresaSeleccionada = empresas.firstOrNull {
+            it.idEmpresa == idEmpresaSeleccionada
+        }
+        AlertDialog(
+            onDismissRequest = { confirmarAsociacion = false },
+            title = { Text("Confirmar asociación") },
+            text = {
+                Text(
+                    "¿Vincular la cuenta ${clienteSeleccionado?.nombre.orEmpty()} con " +
+                        "${empresaSeleccionada?.razonSocial.orEmpty()}? Esta acción cambia el acceso del cliente."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarAsociacion = false
+                        asociarClienteSeleccionado()
+                    }
+                ) {
+                    Text("Vincular")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarAsociacion = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

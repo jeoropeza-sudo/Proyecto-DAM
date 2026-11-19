@@ -16,14 +16,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duocuc.Induztek.model.EstadoProtocolo
+import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.data.ConvertidorImagen
@@ -49,6 +55,7 @@ import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.ui.theme.Exito
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,11 +68,59 @@ fun ComprobanteTerrenoScreen(
     var protocolo by remember(idProtocolo) { mutableStateOf<ProtocoloTerreno?>(null) }
     var motivoRevision by remember(idProtocolo) { mutableStateOf("") }
     var mensajeRevision by remember(idProtocolo) { mutableStateOf<String?>(null) }
+    var accionRevisionPendiente by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val esCliente = usuarioActivo?.rolCodigo.equals(
+        Rol.CODIGO_CLIENTE,
+        ignoreCase = true
+    )
+
+    fun cambiarEstadoProtocolo(estadoNuevo: String) {
+        val usuarioRevisor = usuarioActivo
+        if (usuarioRevisor == null) {
+            mensajeRevision = "Inicia sesión con un perfil autorizado para revisar el protocolo."
+            return
+        }
+
+        val motivo = if (estadoNuevo == "FORMALIZADO") {
+            "Aprobado y formalizado oficialmente"
+        } else {
+            motivoRevision.trim()
+        }
+        val protocoloActualizado = viewModel.cambiarEstadoProtocolo(
+            idProtocolo,
+            estadoNuevo,
+            usuarioRevisor,
+            motivo
+        )
+        if (protocoloActualizado == null || protocoloActualizado.estado != estadoNuevo) {
+            mensajeRevision = when (estadoNuevo) {
+                "OBSERVADO" -> "No se observó el protocolo. Verifica que siga pendiente y que el motivo esté completo."
+                "ANULADO" -> "No se anuló el protocolo. Verifica que siga pendiente y que indicaste el motivo."
+                else -> "No se formalizó el protocolo. Verifica que siga pendiente de revisión."
+            }
+            return
+        }
+
+        protocolo = protocoloActualizado
+        mensajeRevision = null
+        val mensajeConfirmacion = when (estadoNuevo) {
+            "OBSERVADO" -> "Protocolo observado; el motivo quedó registrado."
+            "ANULADO" -> "Protocolo anulado; el motivo quedó registrado."
+            else -> "Protocolo formalizado correctamente."
+        }
+        scope.launch {
+            snackbarHostState.showSnackbar(mensajeConfirmacion)
+        }
+    }
+
     LaunchedEffect(idProtocolo, usuarioActivo) {
         protocolo = viewModel.obtenerProtocoloVisible(idProtocolo, usuarioActivo)
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -230,7 +285,12 @@ fun ComprobanteTerrenoScreen(
                         "${evento.estadoAnterior ?: "Nuevo"} → ${evento.estadoNuevo}",
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text("${evento.fechaHora} · ${evento.usuarioNombre}", style = MaterialTheme.typography.bodySmall)
+                    val detalleEvento = if (esCliente) {
+                        evento.fechaHora
+                    } else {
+                        "${evento.fechaHora} · ${evento.usuarioNombre}"
+                    }
+                    Text(detalleEvento, style = MaterialTheme.typography.bodySmall)
                     if (!evento.motivo.isNullOrBlank()) {
                         Text(evento.motivo, style = MaterialTheme.typography.bodySmall)
                     }
@@ -248,19 +308,14 @@ fun ComprobanteTerrenoScreen(
                     onValueChange = { motivoRevision = it },
                     label = { Text("Motivo de observación") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
+                    minLines = 2,
+                    supportingText = {
+                        Text("Obligatorio para observar o anular; explica la razón del cambio.")
+                    }
                 )
                 if (estado == EstadoProtocolo.REGISTRADO_TERRENO) {
                     Button(
-                        onClick = {
-                            val actualizado = usuarioActivo?.let {
-                                viewModel.cambiarEstadoProtocolo(idProtocolo, "OBSERVADO", it, motivoRevision)
-                            }
-                            if (actualizado != null) protocolo = actualizado
-                            mensajeRevision = if (actualizado?.estado == "OBSERVADO") {
-                                "Protocolo observado; el motivo quedó registrado en el historial."
-                            } else "No se pudo observar el protocolo. Verifique el rol y el motivo."
-                        },
+                        onClick = { accionRevisionPendiente = "OBSERVADO" },
                         enabled = motivoRevision.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -268,39 +323,13 @@ fun ComprobanteTerrenoScreen(
                     }
                 }
                 Button(
-                    onClick = {
-                        val actualizado = usuarioActivo?.let {
-                            viewModel.cambiarEstadoProtocolo(
-                                idProtocolo,
-                                "FORMALIZADO",
-                                it,
-                                "Aprobado y formalizado oficialmente"
-                            )
-                        }
-                        if (actualizado != null) protocolo = actualizado
-                        mensajeRevision = if (actualizado?.estado == "FORMALIZADO") {
-                            "Protocolo formalizado y registrado en el historial."
-                        } else "No se pudo formalizar el protocolo. Verifique el rol y el estado."
-                    },
+                    onClick = { accionRevisionPendiente = "FORMALIZADO" },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("FORMALIZAR PROTOCOLO")
                 }
                 Button(
-                    onClick = {
-                        val actualizado = usuarioActivo?.let {
-                            viewModel.cambiarEstadoProtocolo(
-                                idProtocolo,
-                                "ANULADO",
-                                it,
-                                motivoRevision
-                            )
-                        }
-                        if (actualizado != null) protocolo = actualizado
-                        mensajeRevision = if (actualizado?.estado == "ANULADO") {
-                            "Protocolo anulado y motivo registrado en el historial."
-                        } else "No se pudo anular el protocolo. Verifique el rol, estado y motivo."
-                    },
+                    onClick = { accionRevisionPendiente = "ANULADO" },
                     enabled = motivoRevision.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -316,6 +345,40 @@ fun ComprobanteTerrenoScreen(
                 Text("VOLVER AL INICIO")
             }
         }
+    }
+
+    val accionConfirmada = accionRevisionPendiente
+    if (accionConfirmada != null) {
+        val tituloDialogo = when (accionConfirmada) {
+            "OBSERVADO" -> "Observar protocolo"
+            "ANULADO" -> "Anular protocolo"
+            else -> "Formalizar protocolo"
+        }
+        val textoDialogo = when (accionConfirmada) {
+            "OBSERVADO" -> "Se registrará el motivo y el protocolo quedará observado. ¿Continuar?"
+            "ANULADO" -> "La anulación quedará registrada y no se podrá revertir desde esta pantalla. ¿Continuar?"
+            else -> "Se aprobará y formalizará este protocolo. ¿Confirmas la acción?"
+        }
+        AlertDialog(
+            onDismissRequest = { accionRevisionPendiente = null },
+            title = { Text(tituloDialogo) },
+            text = { Text(textoDialogo) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        accionRevisionPendiente = null
+                        cambiarEstadoProtocolo(accionConfirmada)
+                    }
+                ) {
+                    Text(if (accionConfirmada == "ANULADO") "Anular" else "Confirmar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { accionRevisionPendiente = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

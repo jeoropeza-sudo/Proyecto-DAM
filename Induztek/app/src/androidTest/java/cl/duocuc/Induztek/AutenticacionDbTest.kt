@@ -48,14 +48,14 @@ class AutenticacionDbTest {
             nombre = "Usuario de prueba",
             correo = "cliente.test@example.com",
             telefono = "",
-            clavePlana = "clave123",
+            clavePlana = "ClienteFuerte2026!",
             rolCodigo = "CLIENTE",
             pregunta = "Pregunta de prueba",
             respuestaPlana = "respuesta"
         )
 
         assertTrue(idUsuario > 0)
-        val usuario = db.autenticarUsuario("cliente.test@example.com", "clave123")
+        val usuario = db.autenticarUsuario("cliente.test@example.com", "ClienteFuerte2026!")
         assertNotNull(usuario)
         assertEquals(idUsuario, usuario?.idUsuario)
         assertEquals("CLIENTE", usuario?.rolCodigo)
@@ -69,7 +69,7 @@ class AutenticacionDbTest {
             nombre = "Usuario de prueba",
             correo = "cliente.test@example.com",
             telefono = "",
-            clavePlana = "clave123",
+            clavePlana = "ClienteFuerte2026!",
             rolCodigo = "CLIENTE",
             pregunta = preguntaRegistrada,
             respuestaPlana = "respuesta"
@@ -110,7 +110,7 @@ class AutenticacionDbTest {
             nombre = "Cliente sin empresa",
             correo = "cliente.sin.empresa@example.com",
             telefono = "",
-            clavePlana = "clave123",
+            clavePlana = "ClienteFuerte2026!",
             rolCodigo = "CLIENTE",
             pregunta = "Pregunta de prueba",
             respuestaPlana = "respuesta"

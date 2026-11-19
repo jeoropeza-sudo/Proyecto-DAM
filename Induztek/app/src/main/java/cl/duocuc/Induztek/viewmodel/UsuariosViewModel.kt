@@ -37,13 +37,22 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun iniciarSesion(correo: String, clave: String): Usuario? {
+        if (correo.isBlank()) {
+            _errorAuth.value = "Ingresa el correo electrónico de tu cuenta."
+            return null
+        }
+        if (clave.isBlank()) {
+            _errorAuth.value = "Ingresa la contraseña de tu cuenta."
+            return null
+        }
+
         val usuario = db.autenticarUsuario(correo, clave)
         if (usuario != null) {
             _usuarioActual.value = usuario
             sesionPreferencias.guardar(usuario.idUsuario)
             _errorAuth.value = null
         } else {
-            _errorAuth.value = "Credenciales incorrectas. Verifique correo y contraseña."
+            _errorAuth.value = "El correo o la contraseña no coinciden. Verifica ambos datos e inténtalo nuevamente."
         }
         return usuario
     }

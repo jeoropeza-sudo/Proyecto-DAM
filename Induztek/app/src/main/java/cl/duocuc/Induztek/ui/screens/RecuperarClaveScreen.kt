@@ -37,11 +37,7 @@ fun RecuperarClaveScreen(
     val tieneMayuscula = claveEvaluada.any { it.isUpperCase() }
     val tieneNumero = claveEvaluada.any { it.isDigit() }
     val tieneEspecial = claveEvaluada.any { !it.isLetterOrDigit() }
-    var seguridad = 0
-    if (cumpleLongitud) seguridad++
-    if (tieneMayuscula) seguridad++
-    if (tieneNumero) seguridad++
-    if (tieneEspecial) seguridad++
+    val seguridad = ValidarContrasena.nivelSeguridad(nuevaClave)
 
     Scaffold(
         topBar = {

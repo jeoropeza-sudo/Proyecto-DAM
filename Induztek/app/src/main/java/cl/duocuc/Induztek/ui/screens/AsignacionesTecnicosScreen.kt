@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -26,14 +27,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +51,7 @@ import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,9 +76,39 @@ fun AsignacionesTecnicosScreen(
     var menuTecnicosExpandido by remember { mutableStateOf(false) }
     var busqueda by remember { mutableStateOf("") }
     var mensaje by remember { mutableStateOf<String?>(null) }
+    var confirmarGuardado by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val instalacionesFiltradas = instalaciones.filter {
         it.nombre.contains(busqueda.trim(), ignoreCase = true) ||
                 it.empresa.contains(busqueda.trim(), ignoreCase = true)
+    }
+
+    fun guardarAsignacionesSeleccionadas() {
+        val idTecnico = tecnicoSeleccionadoId
+        if (idTecnico == null) {
+            mensaje = "Selecciona un técnico antes de guardar sus instalaciones."
+            return
+        }
+
+        val guardado = viewModel.guardarAsignacionesTecnico(
+            idTecnico,
+            instalacionesSeleccionadas,
+            usuarioActivo
+        )
+        if (guardado) {
+            asignacionesOriginales = instalacionesSeleccionadas
+            instalacionesOcupadas =
+                viewModel.instalacionesAsignadasAOtrosTecnicos(idTecnico, usuarioActivo)
+            mensaje = null
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "Se actualizaron ${instalacionesSeleccionadas.size} instalaciones para el técnico."
+                )
+            }
+        } else {
+            mensaje = "No se guardaron las asignaciones. Quita las instalaciones ocupadas por otro técnico y vuelve a intentar."
+        }
     }
 
     LaunchedEffect(usuarioActivo?.idUsuario, tecnicos) {
@@ -95,6 +131,7 @@ fun AsignacionesTecnicosScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -315,14 +352,11 @@ fun AsignacionesTecnicosScreen(
                     }
                 }
 
-                mensaje?.let { texto ->
+                val errorAsignacion = mensaje
+                if (errorAsignacion != null) {
                     Text(
-                        texto,
-                        color = if (texto.startsWith("Listo:")) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
+                        errorAsignacion,
+                        color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -330,23 +364,12 @@ fun AsignacionesTecnicosScreen(
                 BotonPrincipal(
                     texto = "Guardar cambios",
                     onClick = {
-                        val idTecnico = tecnicoSeleccionadoId
-                        if (idTecnico == null) {
-                            mensaje = "Elige un técnico antes de guardar."
+                        if (tecnicoSeleccionadoId == null) {
+                            mensaje = "Selecciona un técnico antes de guardar sus instalaciones."
+                        } else if (instalacionesSeleccionadas == asignacionesOriginales) {
+                            mensaje = "No hay cambios pendientes para guardar."
                         } else {
-                            val guardado = viewModel.guardarAsignacionesTecnico(
-                                idTecnico,
-                                instalacionesSeleccionadas,
-                                usuarioActivo
-                            )
-                            mensaje = if (guardado) {
-                                asignacionesOriginales = instalacionesSeleccionadas
-                                instalacionesOcupadas =
-                                    viewModel.instalacionesAsignadasAOtrosTecnicos(idTecnico, usuarioActivo)
-                                "Listo: se guardaron ${instalacionesSeleccionadas.size} instalaciones para este técnico."
-                            } else {
-                                "No se guardaron los cambios. Revisa si alguna instalación fue asignada a otra persona."
-                            }
+                            confirmarGuardado = true
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -356,6 +379,36 @@ fun AsignacionesTecnicosScreen(
                 )
             }
         }
+    }
+
+    if (confirmarGuardado) {
+        val tecnicoNombre = tecnicos.firstOrNull {
+            it.idUsuario == tecnicoSeleccionadoId
+        }?.nombre.orEmpty()
+        AlertDialog(
+            onDismissRequest = { confirmarGuardado = false },
+            title = { Text("Confirmar asignaciones") },
+            text = {
+                Text(
+                    "¿Guardar ${instalacionesSeleccionadas.size} instalaciones para $tecnicoNombre?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarGuardado = false
+                        guardarAsignacionesSeleccionadas()
+                    }
+                ) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarGuardado = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

@@ -716,11 +716,26 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
         val temperatura = estado.tempAmbiente.replace(',', '.').toDoubleOrNull()
         val humedad = estado.humedadPct.replace(',', '.').toDoubleOrNull()
-        if (temperatura == null || !temperatura.isFinite() ||
-            humedad == null || !humedad.isFinite() || humedad !in 0.0..100.0
-        ) {
+        if (temperatura == null || !temperatura.isFinite()) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "Ingrese temperatura y humedad válidas (humedad entre 0 y 100 %).")
+                it.copy(mensajeErrorFormulario = "La temperatura debe ser un número válido en °C. Revisa el valor ingresado.")
+            }
+            return false
+        }
+
+        if (humedad == null || !humedad.isFinite() || humedad !in 0.0..100.0) {
+            _uiState.update {
+                it.copy(mensajeErrorFormulario = "La humedad debe ser un número entre 0 y 100 %. Corrige el valor ingresado.")
+            }
+            return false
+        }
+
+        if (estado.clienteRecibeRut.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    errorRutClienteRecibe = true,
+                    mensajeErrorFormulario = "Ingresa el RUT de la persona que recibe el acta, incluido su dígito verificador."
+                )
             }
             return false
         }
@@ -729,15 +744,22 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             _uiState.update {
                 it.copy(
                     errorRutClienteRecibe = true,
-                    mensajeErrorFormulario = "El RUT del receptor del cliente es inválido (RN-03)."
+                    mensajeErrorFormulario = "El RUT del receptor no es válido. Revisa que incluya el dígito verificador correcto."
                 )
             }
             return false
         }
 
-        if (estado.clienteRecibeNombre.isBlank() || estado.clienteRecibeCargo.isBlank()) {
+        if (estado.clienteRecibeNombre.isBlank()) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "Complete nombre y cargo de quien recibe el acta.")
+                it.copy(mensajeErrorFormulario = "Ingresa el nombre de la persona que recibe el acta.")
+            }
+            return false
+        }
+
+        if (estado.clienteRecibeCargo.isBlank()) {
+            _uiState.update {
+                it.copy(mensajeErrorFormulario = "Ingresa el cargo de la persona que recibe el acta.")
             }
             return false
         }
@@ -747,7 +769,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             estado.descripcionMantenimiento.isBlank()
         ) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "Describa el mantenimiento realizado para cerrar esta visita.")
+                it.copy(mensajeErrorFormulario = "Describe el mantenimiento realizado en el campo «Descripción del mantenimiento» antes de registrar.")
             }
             return false
         }
@@ -756,8 +778,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             if (estado.motivoNoRealizada.isBlank()) {
                 _uiState.update {
                     it.copy(
-                        errorMotivoNoRealizada = "Debe ingresar la justificación obligatoria.",
-                        mensajeErrorFormulario = "Complete los campos obligatorios antes de registrar el protocolo."
+                        errorMotivoNoRealizada = "Explica por qué no se realizó la prueba.",
+                        mensajeErrorFormulario = "Ingresa la justificación de la prueba no realizada."
                     )
                 }
                 return false
@@ -790,8 +812,20 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             if (!medicionesCompletas) {
+                val detalleMediciones = when (estado.tipoEquipo) {
+                    "Transformador" ->
+                        "Completa aislamiento, relación de transformación y resistencia de devanados antes de registrar."
+                    "Interruptor", "Celda MT" ->
+                        "Completa las lecturas de aislamiento y resistencia de contactos antes de registrar."
+                    "Cable de poder" ->
+                        "Completa las lecturas de aislamiento de todas las fases antes de registrar."
+                    "Relé de protección" ->
+                        "Completa corriente, resultado de operación y tiempo de actuación cuando corresponda."
+                    else ->
+                        "Selecciona un tipo de equipo y completa sus mediciones obligatorias."
+                }
                 _uiState.update {
-                    it.copy(mensajeErrorFormulario = "Complete todas las mediciones obligatorias para el tipo de equipo seleccionado.")
+                    it.copy(mensajeErrorFormulario = detalleMediciones)
                 }
                 return false
             }

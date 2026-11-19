@@ -38,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -45,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,14 +63,16 @@ import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.permisos.Permisos
 import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.model.Rol
+import cl.duocuc.Induztek.model.ValidarContrasena
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.BotonSecundario
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.styles.EstilosCampo
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
-import cl.duocuc.Induztek.ui.theme.Exito
 import cl.duocuc.Induztek.model.ValidarTelefonoChile
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +86,7 @@ fun PerfilScreen(
 ) {
     val context = LocalContext.current
     var mostrarOpcionesFoto by remember { mutableStateOf(false) }
+    var confirmarCerrarSesion by remember { mutableStateOf(false) }
     var mensajePermiso by remember { mutableStateOf<String?>(null) }
     var permisoCamaraDenegado by remember { mutableStateOf(false) }
     var editarPerfil by remember { mutableStateOf(false) }
@@ -91,14 +97,27 @@ fun PerfilScreen(
         mutableStateOf(usuarioActivo?.telefono.orEmpty())
     }
     var errorPerfil by remember { mutableStateOf<String?>(null) }
-    var mensajeExitoPerfil by remember { mutableStateOf<String?>(null) }
 
     var mostrarFormularioClave by remember { mutableStateOf(false) }
     var claveActual by remember { mutableStateOf("") }
     var claveNueva by remember { mutableStateOf("") }
     var claveConfirmar by remember { mutableStateOf("") }
     var errorClave by remember { mutableStateOf<String?>(null) }
-    var mensajeExitoClave by remember { mutableStateOf<String?>(null) }
+    val claveEvaluada = claveNueva.trim()
+    val cumpleLongitud = claveEvaluada.length >= ValidarContrasena.LONGITUD_MINIMA
+    val tieneMayuscula = claveEvaluada.any { it.isUpperCase() }
+    val tieneNumero = claveEvaluada.any { it.isDigit() }
+    val tieneEspecial = claveEvaluada.any { !it.isLetterOrDigit() }
+    val seguridad = ValidarContrasena.nivelSeguridad(claveNueva)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val perfilNombre = when (usuarioActivo?.rolCodigo) {
+        Rol.CODIGO_CLIENTE -> "Cliente"
+        Rol.CODIGO_TECNICO -> "Técnico"
+        Rol.CODIGO_INGENIERO -> "Ingeniería"
+        Rol.CODIGO_JEFE_TECNICO -> "Jefatura Técnica"
+        else -> "Usuario"
+    }
 
     val launcherCamara = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -152,7 +171,31 @@ fun PerfilScreen(
         )
     }
 
+    if (confirmarCerrarSesion) {
+        AlertDialog(
+            onDismissRequest = { confirmarCerrarSesion = false },
+            title = { Text("Cerrar sesión") },
+            text = { Text("¿Quieres cerrar tu sesión en este dispositivo?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarCerrarSesion = false
+                        onCerrarSesion()
+                    }
+                ) {
+                    Text("Cerrar sesión")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarCerrarSesion = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -234,7 +277,7 @@ fun PerfilScreen(
                     if (editarPerfil) {
                         OutlinedTextField(
                             value = nombreEditado,
-                            onValueChange = { nombreEditado = it; errorPerfil = null; mensajeExitoPerfil = null },
+                            onValueChange = { nombreEditado = it; errorPerfil = null },
                             label = { Text("Nombre") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -243,7 +286,7 @@ fun PerfilScreen(
                         )
                         OutlinedTextField(
                             value = telefonoEditado,
-                            onValueChange = { telefonoEditado = it; errorPerfil = null; mensajeExitoPerfil = null },
+                            onValueChange = { telefonoEditado = it; errorPerfil = null },
                             label = { Text("Teléfono") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -279,14 +322,11 @@ fun PerfilScreen(
                         Text(usuarioActivo?.correo ?: "N/A")
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Rol Sistema:", fontWeight = FontWeight.Bold)
-                        Text(usuarioActivo?.rolCodigo ?: "N/A")
+                        Text("Perfil:", fontWeight = FontWeight.Bold)
+                        Text(perfilNombre)
                     }
                     if (errorPerfil != null) {
                         Text(errorPerfil.orEmpty(), color = ErrorColor, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (mensajeExitoPerfil != null) {
-                        Text(mensajeExitoPerfil.orEmpty(), color = Exito, style = MaterialTheme.typography.bodySmall)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BotonSecundario(
@@ -306,18 +346,20 @@ fun PerfilScreen(
                                 texto = "Guardar",
                                 onClick = {
                                     when {
-                                        nombreEditado.isBlank() -> errorPerfil = "Ingresa tu nombre."
-                                        telefonoEditado.isBlank() -> errorPerfil = "Ingresa tu teléfono."
+                                        nombreEditado.isBlank() -> errorPerfil = "Ingresa el nombre que debe aparecer en tu perfil."
+                                        telefonoEditado.isBlank() -> errorPerfil = "Ingresa un teléfono móvil de contacto."
                                         !ValidarTelefonoChile.esValido(telefonoEditado) -> {
-                                            errorPerfil = "Ingresa un teléfono móvil chileno válido."
+                                            errorPerfil = "El teléfono debe tener formato 9XXXXXXXX o +569XXXXXXXX."
                                         }
                                         onActualizarPerfil(nombreEditado, telefonoEditado) -> {
                                             telefonoEditado = ValidarTelefonoChile.normalizar(telefonoEditado).orEmpty()
                                             editarPerfil = false
                                             errorPerfil = null
-                                            mensajeExitoPerfil = "Datos actualizados."
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Los datos del perfil se actualizaron.")
+                                            }
                                         }
-                                        else -> errorPerfil = "No se pudieron guardar los datos."
+                                        else -> errorPerfil = "No se guardaron los cambios. Revisa el nombre y el teléfono e inténtalo nuevamente."
                                     }
                                 },
                                 modifier = Modifier.weight(1f)
@@ -332,7 +374,6 @@ fun PerfilScreen(
                 onClick = {
                     mostrarFormularioClave = !mostrarFormularioClave
                     errorClave = null
-                    mensajeExitoClave = null
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -373,7 +414,32 @@ fun PerfilScreen(
                             visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             shape = EstilosCampo.forma,
-                            colors = EstilosCampo.colores()
+                            colors = EstilosCampo.colores(),
+                            isError = claveNueva.isNotEmpty() && !ValidarContrasena.esSegura(claveNueva)
+                        )
+                        Text(
+                            text = when {
+                                seguridad == 4 -> "Seguridad: Fuerte"
+                                seguridad >= 3 -> "Seguridad: Media"
+                                else -> "Seguridad: Débil"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = when {
+                                seguridad == 4 -> MaterialTheme.colorScheme.primary
+                                seguridad >= 3 -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.error
+                            }
+                        )
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = seguridad / 4f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "${if (cumpleLongitud) "✓" else "○"} ${ValidarContrasena.LONGITUD_MINIMA} caracteres · " +
+                                "${if (tieneMayuscula) "✓" else "○"} mayúscula · " +
+                                "${if (tieneNumero) "✓" else "○"} número · " +
+                                "${if (tieneEspecial) "✓" else "○"} carácter especial",
+                            style = MaterialTheme.typography.bodySmall
                         )
 
                         OutlinedTextField(
@@ -390,33 +456,31 @@ fun PerfilScreen(
                             Text(text = errorClave!!, color = ErrorColor, style = MaterialTheme.typography.bodySmall)
                         }
 
-                        if (mensajeExitoClave != null) {
-                            Text(text = mensajeExitoClave!!, color = Exito, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                        }
-
                         BotonPrincipal(
                             texto = "Confirmar Cambio",
                             onClick = {
                                 when {
-                                    claveActual.isBlank() || claveNueva.isBlank() || claveConfirmar.isBlank() -> {
-                                        errorClave = "Complete todos los campos."
-                                    }
+                                    claveActual.isBlank() -> errorClave = "Ingresa tu contraseña actual."
+                                    claveNueva.isBlank() -> errorClave = "Ingresa una contraseña nueva."
+                                    claveConfirmar.isBlank() -> errorClave = "Repite la contraseña nueva para confirmarla."
                                     claveNueva != claveConfirmar -> {
-                                        errorClave = "La contraseña nueva no coincide."
+                                        errorClave = "La confirmación no coincide. Repite exactamente la nueva contraseña."
                                     }
-                                    claveNueva.length < 4 -> {
-                                        errorClave = "La contraseña debe tener al menos 4 caracteres."
+                                    !ValidarContrasena.esSegura(claveNueva) -> {
+                                        errorClave = "La nueva contraseña debe tener mínimo ${ValidarContrasena.LONGITUD_MINIMA} caracteres, una mayúscula, un número y un carácter especial."
                                     }
                                     else -> {
                                         val exito = onCambiarClave(claveActual, claveNueva)
                                         if (exito) {
-                                            mensajeExitoClave = "¡Contraseña actualizada correctamente!"
                                             claveActual = ""
                                             claveNueva = ""
                                             claveConfirmar = ""
                                             errorClave = null
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("La contraseña se actualizó correctamente.")
+                                            }
                                         } else {
-                                            errorClave = "La contraseña actual es incorrecta."
+                                            errorClave = "La contraseña actual no coincide con la registrada. Vuelve a ingresarla."
                                         }
                                     }
                                 }
@@ -431,7 +495,7 @@ fun PerfilScreen(
 
             BotonSecundario(
                 texto = "Cerrar Sesión",
-                onClick = onCerrarSesion,
+                onClick = { confirmarCerrarSesion = true },
                 modifier = Modifier.fillMaxWidth()
             )
         }

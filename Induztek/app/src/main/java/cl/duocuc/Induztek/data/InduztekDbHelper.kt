@@ -451,6 +451,7 @@ class InduztekDbHelper(
         respuestaPlana: String,
         idEmpresaCliente: Long? = null
     ): Long {
+        if (!ValidarContrasena.esSegura(clavePlana)) return -1L
         val telefonoNormalizado = if (telefono.isBlank()) "" else ValidarTelefonoChile.normalizar(telefono) ?: return -1L
         val valores = ContentValues().apply {
             put(USR_RUT, rut.trim())
@@ -495,6 +496,8 @@ class InduztekDbHelper(
     }
 
     fun cambiarClave(idUsuario: Long, claveActualPlana: String, claveNuevaPlana: String): Boolean {
+        if (!ValidarContrasena.esSegura(claveNuevaPlana)) return false
+
         val db = writableDatabase
         val hashActual = claveActualPlana.trim().toSha256()
         val hashNuevo = claveNuevaPlana.trim().toSha256()

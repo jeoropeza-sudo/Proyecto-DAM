@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -29,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +51,6 @@ import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.components.TarjetaSeccion
 import cl.duocuc.Induztek.ui.theme.Dimens
-import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +65,9 @@ fun FormularioProtocoloScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var confirmarRegistro by remember { mutableStateOf(false) }
+    var confirmarAgregarEquipo by remember { mutableStateOf(false) }
+    var confirmarCerrarVisita by remember { mutableStateOf(false) }
     val launcherPermisoNotificaciones = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {}
@@ -72,6 +76,9 @@ fun FormularioProtocoloScreen(
         Rol.CODIGO_TECNICO,
         ignoreCase = true
     ) && uiState.instalacionesDisponibles.isEmpty()
+    val esTecnico = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)
+    val esIngenieria = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
+        usuarioActivo?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
     val visitaEnCurso = uiState.protocolosPendientesVisita > 0
 
     LaunchedEffect(uiState.idProtocoloRegistrado) {
@@ -88,6 +95,13 @@ fun FormularioProtocoloScreen(
     LaunchedEffect(usuarioActivo) {
         if (usuarioActivo != null) {
             viewModel.inicializarParaUsuario(usuarioActivo)
+        }
+    }
+
+    LaunchedEffect(uiState.mensajeErrorFormulario) {
+        val errorFormulario = uiState.mensajeErrorFormulario
+        if (errorFormulario != null) {
+            snackbarHostState.showSnackbar(errorFormulario)
         }
     }
 
@@ -118,37 +132,52 @@ fun FormularioProtocoloScreen(
         ) {
 
             if (esCliente) {
-                Text(
-                    text = "Modo de solo lectura. Los clientes no pueden registrar protocolos.",
-                    color = ErrorColor,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            } else if (tecnicoSinAsignaciones) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            "SIN INSTALACIONES ASIGNADAS",
+                            "El registro de protocolos es para el equipo técnico.",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Text(
-                            "Solicita al Jefe Técnico que asigne tus instalaciones para habilitar el registro de protocolos.",
-                            style = MaterialTheme.typography.bodySmall,
+                            "Consulta los protocolos autorizados desde «Mi Portal».",
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
-            }
+            } else {
+                if (tecnicoSinAsignaciones) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "SIN INSTALACIONES ASIGNADAS",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                "Solicita al Jefe Técnico que asigne tus instalaciones para habilitar el registro de protocolos.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
 
-            TarjetaSeccion(titulo = "1. DATOS DE LA VISITA") {
+                TarjetaSeccion(titulo = "1. DATOS DE LA VISITA") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = uiState.fechaVisita, onValueChange = {}, label = { Text("Fecha") }, readOnly = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = uiState.horaInicio, onValueChange = {}, label = { Text("Hora Inicio") }, readOnly = true, modifier = Modifier.weight(1f))
@@ -167,20 +196,24 @@ fun FormularioProtocoloScreen(
                         value = uiState.humedadPct, onValueChange = { viewModel.onHumedadPctCambia(it) }, label = { Text("Humedad (%) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
                     )
                 }
-                OutlinedTextField(
-                    value = uiState.tecnicoNombre,
-                    onValueChange = {},
-                    label = { Text("Técnico responsable") },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = uiState.ingenieroNombre,
-                    onValueChange = viewModel::onIngenieroNombreCambia,
-                    label = { Text("Ingeniero responsable") },
-                    enabled = !esCliente && !visitaEnCurso,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (esTecnico) {
+                    OutlinedTextField(
+                        value = uiState.tecnicoNombre,
+                        onValueChange = {},
+                        label = { Text("Técnico responsable") },
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (esIngenieria) {
+                    OutlinedTextField(
+                        value = uiState.ingenieroNombre,
+                        onValueChange = viewModel::onIngenieroNombreCambia,
+                        label = { Text("Ingeniero responsable") },
+                        enabled = !visitaEnCurso,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 SelectorDesplegable(
                     label = "Tipo de visita",
                     opciones = listOf("SOLO PRUEBAS", "PRUEBAS Y MANTENIMIENTO"),
@@ -373,19 +406,27 @@ fun FormularioProtocoloScreen(
 
             TarjetaSeccion(titulo = "7. FIRMAS / RECEPCIÓN CLIENTE") {
                 OutlinedTextField(value = uiState.clienteRecibeNombre, onValueChange = { viewModel.onClienteRecibeNombreCambia(it) }, label = { Text("Nombre Receptor *") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = uiState.clienteRecibeRut, onValueChange = { viewModel.onClienteRecibeRutCambia(it) }, label = { Text("RUT Receptor *") }, isError = uiState.errorRutClienteRecibe, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = uiState.clienteRecibeRut,
+                    onValueChange = { viewModel.onClienteRecibeRutCambia(it) },
+                    label = { Text("RUT Receptor *") },
+                    isError = uiState.errorRutClienteRecibe,
+                    supportingText = {
+                        if (uiState.errorRutClienteRecibe) {
+                            Text("El RUT debe incluir un dígito verificador válido, por ejemplo 12.345.678-5.")
+                        }
+                    },
+                    enabled = !esCliente && !visitaEnCurso,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedTextField(value = uiState.clienteRecibeCargo, onValueChange = { viewModel.onClienteRecibeCargoCambia(it) }, label = { Text("Cargo Receptor") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
-            }
-
-            if (uiState.mensajeErrorFormulario != null) {
-                Text(uiState.mensajeErrorFormulario!!, color = ErrorColor, fontWeight = FontWeight.Bold)
             }
 
             if (usuarioActivo != null && !esCliente) {
                 if (uiState.protocolosPendientesVisita == 0) {
                     BotonPrincipal(
                         texto = "Registrar protocolo",
-                        onClick = { viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario) },
+                        onClick = { confirmarRegistro = true },
                         modifier = Modifier.fillMaxWidth(),
                         habilitado = !tecnicoSinAsignaciones
                     )
@@ -420,22 +461,101 @@ fun FormularioProtocoloScreen(
                 }
                 BotonPrincipal(
                     texto = "Agregar equipo a la visita",
-                    onClick = { viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario, agregarAVisita = true) },
+                    onClick = { confirmarAgregarEquipo = true },
                     modifier = Modifier.fillMaxWidth(),
                     habilitado = !tecnicoSinAsignaciones
                 )
                 if (uiState.protocolosPendientesVisita > 0) {
                     BotonPrincipal(
                         texto = "Cerrar visita y registrar todo",
-                        onClick = { viewModel.cerrarVisita(usuarioActivo.idUsuario) },
+                        onClick = { confirmarCerrarVisita = true },
                         modifier = Modifier.fillMaxWidth(),
                         habilitado = !tecnicoSinAsignaciones
                     )
                 }
             }
 
+            }
+
             Spacer(Modifier.height(20.dp))
         }
+    }
+
+    if (usuarioActivo != null && confirmarRegistro) {
+        AlertDialog(
+            onDismissRequest = { confirmarRegistro = false },
+            title = { Text("Registrar protocolo") },
+            text = { Text("¿Registrar el protocolo de ${uiState.tagEquipo} para ${uiState.instalacionNombre}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarRegistro = false
+                        viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario)
+                    }
+                ) {
+                    Text("Registrar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarRegistro = false }) {
+                    Text("Revisar")
+                }
+            }
+        )
+    }
+
+    if (usuarioActivo != null && confirmarAgregarEquipo) {
+        AlertDialog(
+            onDismissRequest = { confirmarAgregarEquipo = false },
+            title = { Text("Agregar equipo a la visita") },
+            text = { Text("¿Agregar ${uiState.tagEquipo} a la visita OT-${uiState.otNumero}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarAgregarEquipo = false
+                        viewModel.onRegistrarProtocolo(
+                            usuarioActivo.idUsuario,
+                            agregarAVisita = true
+                        )
+                    }
+                ) {
+                    Text("Agregar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarAgregarEquipo = false }) {
+                    Text("Revisar")
+                }
+            }
+        )
+    }
+
+    if (usuarioActivo != null && confirmarCerrarVisita) {
+        AlertDialog(
+            onDismissRequest = { confirmarCerrarVisita = false },
+            title = { Text("Cerrar visita") },
+            text = {
+                Text(
+                    "Se registrarán ${uiState.protocolosPendientesVisita} protocolo(s) " +
+                        "y no podrás editar esta visita desde este formulario. ¿Continuar?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarCerrarVisita = false
+                        viewModel.cerrarVisita(usuarioActivo.idUsuario)
+                    }
+                ) {
+                    Text("Cerrar y registrar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarCerrarVisita = false }) {
+                    Text("Seguir revisando")
+                }
+            }
+        )
     }
 }
 
