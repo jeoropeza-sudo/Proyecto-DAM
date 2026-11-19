@@ -58,8 +58,15 @@ class FiltroProtocolosTest {
 
     @Test
     fun admiteFechaIsoYFiltraPendientesDelCliente() {
+        val indexados = FiltroProtocolos.indexar(protocolos)
+        assertEquals(listOf("20261117", "17112026"), indexados[1].fechas)
+        assertEquals(EstadoProtocolo.OBSERVADO, indexados[1].estado)
+        assertEquals(
+            listOf(2L),
+            FiltroProtocolos.aplicar(indexados, "2026-11-17").map { it.idProtocolo }
+        )
         val resultado = FiltroProtocolos.aplicar(
-            protocolos = FiltroProtocolos.indexar(protocolos),
+            protocolos = indexados,
             consulta = "2026-11-17",
             soloVisiblesCliente = true
         )

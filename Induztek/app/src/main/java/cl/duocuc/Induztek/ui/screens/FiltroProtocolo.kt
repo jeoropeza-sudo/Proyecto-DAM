@@ -114,7 +114,7 @@ fun FiltroProtocoloCombo(
                                     }
                                 )
                                 Text(
-                                    text = opcion,
+                                    text = opcion.removePrefix("Estado: "),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
