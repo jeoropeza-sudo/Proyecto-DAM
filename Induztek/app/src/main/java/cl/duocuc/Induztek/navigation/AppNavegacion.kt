@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -38,7 +37,7 @@ import cl.duocuc.Induztek.ui.screens.LoginScreen
 import cl.duocuc.Induztek.ui.screens.PerfilScreen
 import cl.duocuc.Induztek.ui.screens.ClienteScreen
 import cl.duocuc.Induztek.ui.screens.AsignacionesTecnicosScreen
-import cl.duocuc.Induztek.ui.screens.SolicitudesVisitaScreen
+import cl.duocuc.Induztek.ui.screens.InicioScreen
 import cl.duocuc.Induztek.ui.screens.RecuperarClaveScreen
 import cl.duocuc.Induztek.ui.screens.RegistroScreen
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
@@ -59,8 +58,7 @@ fun AppNavegacion(
     val esIngeniero = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
     LaunchedEffect(usuarioActivo, rutaActual) {
         if (usuarioActivo != null && rutaActual == Ruta.Login.ruta) {
-            val destino = if (esCliente) Ruta.VistaCliente.ruta else Ruta.Formulario.ruta
-            navController.navigate(destino) {
+            navController.navigate(Ruta.Inicio.ruta) {
                 popUpTo(Ruta.Login.ruta) { inclusive = true }
             }
         }
@@ -76,6 +74,27 @@ fun AppNavegacion(
         bottomBar = {
             if (mostrarBarraInferior) {
                 NavigationBar {
+                    NavigationBarItem(
+                        selected = rutaActual == Ruta.Inicio.ruta,
+                        onClick = {
+                            navController.navigate(Ruta.Inicio.ruta) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        label = {
+                            Text(
+                                "Inicio",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip
+                            )
+                        },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") }
+                    )
                     if (!esCliente) {
                         NavigationBarItem(
                             selected = rutaActual == Ruta.Formulario.ruta,
@@ -123,27 +142,6 @@ fun AppNavegacion(
 
                         if (esJefeTecnico || esIngeniero) {
                             NavigationBarItem(
-                                selected = rutaActual == Ruta.Solicitudes.ruta,
-                                onClick = {
-                                    navController.navigate(Ruta.Solicitudes.ruta) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        "Solicitudes",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Clip
-                                    )
-                                },
-                                icon = { Icon(Icons.Default.EventNote, contentDescription = "Solicitudes de visita") }
-                            )
-                            NavigationBarItem(
                                 selected = rutaActual == Ruta.Asignaciones.ruta,
                                 onClick = {
                                     navController.navigate(Ruta.Asignaciones.ruta) {
@@ -175,21 +173,9 @@ fun AppNavegacion(
                                     restoreState = true
                                 }
                             },
-                            label = { Text("Mi Portal", fontWeight = FontWeight.Bold) },
-                            icon = { Icon(Icons.Default.Home, contentDescription = "Portal Cliente") }
-                        )
-                        NavigationBarItem(
-                            selected = rutaActual == Ruta.Solicitudes.ruta,
-                            onClick = {
-                                navController.navigate(Ruta.Solicitudes.ruta) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
                             label = {
                                 Text(
-                                    "Solicitudes",
+                                    "Mi Portal",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp,
                                     maxLines = 1,
@@ -197,7 +183,7 @@ fun AppNavegacion(
                                     overflow = TextOverflow.Clip
                                 )
                             },
-                            icon = { Icon(Icons.Default.EventNote, contentDescription = "Mis solicitudes de visita") }
+                            icon = { Icon(Icons.Default.AccountBox, contentDescription = "Portal cliente") }
                         )
                     }
 
@@ -255,6 +241,17 @@ fun AppNavegacion(
                 )
             }
 
+            composable(Ruta.Inicio.ruta) {
+                InicioScreen(
+                    viewModel = protocoloViewModel,
+                    usuarioActivo = usuarioActivo,
+                    onAbrirPortalCliente = { navController.navigate(Ruta.VistaCliente.ruta) },
+                    onAbrirProtocolo = { navController.navigate(Ruta.Formulario.ruta) },
+                    onAbrirHistorial = { navController.navigate(Ruta.Historial.crear(0L)) },
+                    onAbrirAsignaciones = { navController.navigate(Ruta.Asignaciones.ruta) }
+                )
+            }
+
             composable(Ruta.Formulario.ruta) {
                 FormularioProtocoloScreen(
                     onVerHistorial = { navController.navigate(Ruta.Historial.crear(0L)) },
@@ -302,8 +299,9 @@ fun AppNavegacion(
                     viewModel = protocoloViewModel,
                     usuarioActivo = usuarioActivo,
                     onVolverInicio = {
-                        val inicioDestino = if (esCliente) Ruta.VistaCliente.ruta else Ruta.Formulario.ruta
-                        navController.navigate(inicioDestino) { popUpTo(inicioDestino) { inclusive = true } }
+                        navController.navigate(Ruta.Inicio.ruta) {
+                            popUpTo(Ruta.Inicio.ruta) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -329,12 +327,6 @@ fun AppNavegacion(
                 )
             }
 
-            composable(Ruta.Solicitudes.ruta) {
-                SolicitudesVisitaScreen(
-                    viewModel = protocoloViewModel,
-                    usuarioActivo = usuarioActivo
-                )
-            }
         }
     }
 }
