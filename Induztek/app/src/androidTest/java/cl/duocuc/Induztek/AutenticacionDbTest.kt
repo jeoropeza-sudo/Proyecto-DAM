@@ -7,6 +7,7 @@ import cl.duocuc.Induztek.data.InduztekDbHelper
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -58,6 +59,75 @@ class AutenticacionDbTest {
         assertNotNull(usuario)
         assertEquals(idUsuario, usuario?.idUsuario)
         assertEquals("CLIENTE", usuario?.rolCodigo)
+    }
+
+    @Test
+    fun passwordRecoveryRequiresTheSavedQuestionAndStrongPassword() {
+        val preguntaRegistrada = "¿Ciudad donde naciste?"
+        val idUsuario = db.registrarNuevoUsuario(
+            rut = "12.345.678-5",
+            nombre = "Usuario de prueba",
+            correo = "cliente.test@example.com",
+            telefono = "",
+            clavePlana = "clave123",
+            rolCodigo = "CLIENTE",
+            pregunta = preguntaRegistrada,
+            respuestaPlana = "respuesta"
+        )
+        assertTrue(idUsuario > 0)
+
+        assertFalse(
+            db.recuperarClaveConRespuesta(
+                "cliente.test@example.com",
+                "¿Nombre de tu primera mascota?",
+                "respuesta",
+                "Fuerte2026!Clave"
+            )
+        )
+        assertFalse(
+            db.recuperarClaveConRespuesta(
+                "cliente.test@example.com",
+                preguntaRegistrada,
+                "respuesta",
+                "corta1!"
+            )
+        )
+        assertTrue(
+            db.recuperarClaveConRespuesta(
+                "cliente.test@example.com",
+                preguntaRegistrada,
+                "respuesta",
+                "Fuerte2026!Clave"
+            )
+        )
+        assertNotNull(db.autenticarUsuario("cliente.test@example.com", "Fuerte2026!Clave"))
+    }
+
+    @Test
+    fun associatesAnUnlinkedCustomerWithAnExistingCompanyOnlyOnce() {
+        val idCliente = db.registrarNuevoUsuario(
+            rut = "12.345.678-5",
+            nombre = "Cliente sin empresa",
+            correo = "cliente.sin.empresa@example.com",
+            telefono = "",
+            clavePlana = "clave123",
+            rolCodigo = "CLIENTE",
+            pregunta = "Pregunta de prueba",
+            respuestaPlana = "respuesta"
+        )
+        assertTrue(idCliente > 0)
+
+        val clientesPendientes = db.listarClientesSinEmpresa()
+        assertTrue(clientesPendientes.any { cliente -> cliente.idUsuario == idCliente })
+        assertTrue(db.listarEmpresasParaAsociacion().isNotEmpty())
+
+        assertFalse(db.asociarClienteAEmpresa(idCliente, 9999L))
+        assertTrue(db.asociarClienteAEmpresa(idCliente, 1L))
+        assertFalse(db.asociarClienteAEmpresa(idCliente, 2L))
+
+        val clienteVinculado = db.buscarPorIdUsuario(idCliente)
+        assertEquals(1L, clienteVinculado?.idEmpresaCliente)
+        assertFalse(db.listarClientesSinEmpresa().any { cliente -> cliente.idUsuario == idCliente })
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.model.FormularioProtocoloUiState
 import cl.duocuc.Induztek.model.InstrumentoItem
+import cl.duocuc.Induztek.model.ClienteCatalogoLocal
 import cl.duocuc.Induztek.model.MedicionAislacionUiState
 import cl.duocuc.Induztek.model.MedicionContactosUiState
 import cl.duocuc.Induztek.model.MedicionReleUiState
@@ -119,6 +120,35 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
         }
+    }
+
+    fun empresasParaAsociarCliente(usuario: Usuario?): List<ClienteCatalogoLocal> {
+        val administrador = usuario ?: return emptyList()
+        if (!puedeAsociarCliente(administrador)) return emptyList()
+
+        return db.listarEmpresasParaAsociacion()
+    }
+
+    fun clientesSinEmpresa(usuario: Usuario?): List<Usuario> {
+        val administrador = usuario ?: return emptyList()
+        if (!puedeAsociarCliente(administrador)) return emptyList()
+
+        return db.listarClientesSinEmpresa()
+    }
+
+    fun asociarClienteAEmpresa(idCliente: Long, idEmpresa: Long, usuario: Usuario?): Boolean {
+        val administrador = usuario ?: return false
+        if (!puedeAsociarCliente(administrador)) return false
+
+        return db.asociarClienteAEmpresa(idCliente, idEmpresa)
+    }
+
+    private fun puedeAsociarCliente(usuario: Usuario): Boolean {
+        if (!usuario.activo) return false
+        if (usuario.idUsuario <= 0) return false
+
+        return usuario.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
+            usuario.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
     }
 
     fun tecnicosParaAsignacion(usuario: Usuario?): List<Usuario> =

@@ -117,10 +117,17 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         return true
     }
 
-    fun obtenerPreguntaSeguridad(correo: String): String? = db.obtenerPreguntaSeguridad(correo)
+    fun existeUsuarioActivo(correo: String): Boolean {
+        return db.existeUsuarioActivo(correo)
+    }
 
-    fun recuperarClaveConRespuesta(correo: String, respuesta: String, nuevaClave: String): Boolean {
-        return db.recuperarClaveConRespuesta(correo, respuesta, nuevaClave)
+    fun recuperarClaveConRespuesta(
+        correo: String,
+        pregunta: String,
+        respuesta: String,
+        nuevaClave: String
+    ): Boolean {
+        return db.recuperarClaveConRespuesta(correo, pregunta, respuesta, nuevaClave)
     }
 
     override fun onCleared() {

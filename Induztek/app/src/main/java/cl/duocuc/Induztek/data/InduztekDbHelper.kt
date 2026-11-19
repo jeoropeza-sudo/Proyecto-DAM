@@ -16,6 +16,7 @@ import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
 import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.model.ValidarContrasena
 import cl.duocuc.Induztek.model.ValidarRut
 import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import java.security.MessageDigest
@@ -466,24 +467,31 @@ class InduztekDbHelper(
         return writableDatabase.insert(TABLA_USUARIO, null, valores)
     }
 
-    fun obtenerPreguntaSeguridad(correo: String): String? {
-        val cursor = readableDatabase.rawQuery("SELECT $USR_PREGUNTA FROM $TABLA_USUARIO WHERE LOWER($USR_CORREO) = LOWER(?) AND $USR_ACTIVO = 1", arrayOf(correo.trim()))
-        var pregunta: String? = null
-        if (cursor.moveToFirst()) pregunta = cursor.getString(0)
+    fun existeUsuarioActivo(correo: String): Boolean {
+        val cursor = readableDatabase.rawQuery(
+            "SELECT 1 FROM $TABLA_USUARIO WHERE LOWER($USR_CORREO) = LOWER(?) AND $USR_ACTIVO = 1",
+            arrayOf(correo.trim())
+        )
+        val existe = cursor.moveToFirst()
         cursor.close()
-        return pregunta
+        return existe
     }
 
-    fun recuperarClaveConRespuesta(correo: String, respuestaPlana: String, nuevaClavePlana: String): Boolean {
+    fun recuperarClaveConRespuesta(
+        correo: String,
+        pregunta: String,
+        respuestaPlana: String,
+        nuevaClavePlana: String
+    ): Boolean {
+        if (!ValidarContrasena.esSegura(nuevaClavePlana)) return false
+
         val db = writableDatabase
         val respuestaHash = respuestaPlana.trim().lowercase().toSha256()
         val nuevaClaveHash = nuevaClavePlana.trim().toSha256()
-        val cursor = db.rawQuery("SELECT $USR_ID FROM $TABLA_USUARIO WHERE LOWER($USR_CORREO) = LOWER(?) AND $USR_RESPUESTA = ?", arrayOf(correo.trim(), respuestaHash))
-        val valido = cursor.moveToFirst()
-        cursor.close()
-        if (!valido) return false
         val valores = ContentValues().apply { put(USR_PASS, nuevaClaveHash) }
-        return db.update(TABLA_USUARIO, valores, "LOWER($USR_CORREO) = LOWER(?)", arrayOf(correo.trim())) > 0
+        val clausula = "LOWER($USR_CORREO) = LOWER(?) AND $USR_PREGUNTA = ? AND $USR_RESPUESTA = ? AND $USR_ACTIVO = 1"
+        val argumentos = arrayOf(correo.trim(), pregunta, respuestaHash)
+        return db.update(TABLA_USUARIO, valores, clausula, argumentos) == 1
     }
 
     fun cambiarClave(idUsuario: Long, claveActualPlana: String, claveNuevaPlana: String): Boolean {
@@ -541,6 +549,39 @@ class InduztekDbHelper(
                 }
             }
         }
+
+    fun listarEmpresasParaAsociacion(): List<ClienteCatalogoLocal> =
+        readableDatabase.rawQuery(
+            "SELECT id_empresa_cliente, razon_social FROM $TABLA_EMPRESA ORDER BY razon_social",
+            null
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(ClienteCatalogoLocal(cursor.getLong(0), cursor.getString(1)))
+                }
+            }
+        }
+
+    fun listarClientesSinEmpresa(): List<Usuario> =
+        consultarUsuarios(
+            "$SQL_SELECT_USUARIOS WHERE u.$USR_ROL_ID = ? AND u.$USR_ACTIVO = 1 " +
+                "AND u.$USR_CLIENTE_ID IS NULL ORDER BY u.$USR_NOMBRE",
+            arrayOf(Rol.ID_CLIENTE.toString())
+        )
+
+    fun asociarClienteAEmpresa(idCliente: Long, idEmpresa: Long): Boolean {
+        val valores = ContentValues().apply { put(USR_CLIENTE_ID, idEmpresa) }
+        val clausula = "$USR_ID = ? AND $USR_ROL_ID = ? AND $USR_ACTIVO = 1 " +
+            "AND $USR_CLIENTE_ID IS NULL AND EXISTS (" +
+            "SELECT 1 FROM $TABLA_EMPRESA WHERE id_empresa_cliente = ?)"
+        val argumentos = arrayOf(
+            idCliente.toString(),
+            Rol.ID_CLIENTE.toString(),
+            idEmpresa.toString()
+        )
+
+        return writableDatabase.update(TABLA_USUARIO, valores, clausula, argumentos) == 1
+    }
 
     fun listarClientesTecnico(idTecnico: Long): List<ClienteCatalogoLocal> =
         readableDatabase.rawQuery(

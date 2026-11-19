@@ -37,6 +37,7 @@ import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.model.ValidarRut
 import cl.duocuc.Induztek.model.ValidarTelefonoChile
+import cl.duocuc.Induztek.model.PreguntasSeguridad
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,14 +53,7 @@ fun RegistroScreen(
     var telefono by remember { mutableStateOf("") }
     var clave by remember { mutableStateOf("") }
 
-    val preguntasDisponibles = listOf(
-        "¿Nombre de tu primera mascota?",
-        "¿Ciudad donde naciste?",
-        "¿Nombre de tu colegio de infancia?",
-        "¿Marca de tu primer automóvil?"
-    )
-
-    var preguntaSeleccionada by remember { mutableStateOf(preguntasDisponibles.first()) }
+    var preguntaSeleccionada by remember { mutableStateOf(PreguntasSeguridad.disponibles.first()) }
     var respuestaSeguridad by remember { mutableStateOf("") }
     var expandidoPregunta by remember { mutableStateOf(false) }
 
@@ -176,7 +170,7 @@ fun RegistroScreen(
                     expanded = expandidoPregunta,
                     onDismissRequest = { expandidoPregunta = false }
                 ) {
-                    preguntasDisponibles.forEach { preg ->
+                    PreguntasSeguridad.disponibles.forEach { preg ->
                         DropdownMenuItem(
                             text = { Text(preg) },
                             onClick = {
