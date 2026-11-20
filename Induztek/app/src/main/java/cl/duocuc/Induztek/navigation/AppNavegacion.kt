@@ -1,5 +1,11 @@
 package cl.duocuc.Induztek.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
@@ -17,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
@@ -215,7 +222,23 @@ fun AppNavegacion(
         NavHost(
             navController = navController,
             startDestination = Ruta.Login.ruta,
-            modifier = Modifier.padding(paddingValores)
+            modifier = Modifier.padding(paddingValores),
+            enterTransition = {
+                fadeIn(tween(260, easing = FastOutSlowInEasing)) +
+                    slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { ancho -> ancho / 24 }
+            },
+            exitTransition = {
+                fadeOut(tween(200, easing = FastOutLinearInEasing)) +
+                    slideOutHorizontally(tween(200, easing = FastOutLinearInEasing)) { ancho -> -ancho / 24 }
+            },
+            popEnterTransition = {
+                fadeIn(tween(260, easing = FastOutSlowInEasing)) +
+                    slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { ancho -> -ancho / 24 }
+            },
+            popExitTransition = {
+                fadeOut(tween(200, easing = FastOutLinearInEasing)) +
+                    slideOutHorizontally(tween(200, easing = FastOutLinearInEasing)) { ancho -> ancho / 24 }
+            }
         ) {
             composable(Ruta.Login.ruta) {
                 LoginScreen(

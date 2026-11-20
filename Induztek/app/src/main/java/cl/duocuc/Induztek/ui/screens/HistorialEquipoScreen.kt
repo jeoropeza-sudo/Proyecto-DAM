@@ -3,7 +3,6 @@ package cl.duocuc.Induztek.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cl.duocuc.Induztek.model.EstadoProtocolo
+import cl.duocuc.Induztek.model.FiltroProtocolos
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
@@ -53,18 +56,25 @@ fun HistorialEquipoScreen(
 ) {
     val historialRaw by viewModel.historial.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    var filtrosSeleccionados by remember { mutableStateOf(emptySet<String>()) }
 
     LaunchedEffect(idEquipo, usuarioActivo?.idUsuario) {
         viewModel.cargarHistorialEquipo(idEquipo, usuarioActivo)
     }
 
-    val historialFiltrado = if (esUsuarioCliente) {
-        historialRaw.filter {
-            val st = EstadoProtocolo.desdeCodigo(it.estado)
-            st != EstadoProtocolo.BORRADOR && st != EstadoProtocolo.ANULADO
-        }
-    } else {
-        historialRaw
+    val protocolosIndexados = remember(historialRaw) {
+        FiltroProtocolos.indexar(historialRaw)
+    }
+    val protocolosFiltrados = remember(
+        protocolosIndexados,
+        filtrosSeleccionados,
+        esUsuarioCliente
+    ) {
+        FiltroProtocolos.aplicarSeleccion(
+            protocolos = protocolosIndexados,
+            seleccion = filtrosSeleccionados,
+            soloVisiblesCliente = esUsuarioCliente
+        )
     }
 
     Scaffold(
@@ -72,7 +82,11 @@ fun HistorialEquipoScreen(
             CenterAlignedTopAppBar(
                 title = {
                     MarcaCompacta(
-                        subtitulo = "Historial · ${uiState.tagEquipo} · ${uiState.instalacionNombre}",
+                        subtitulo = if (idEquipo == 0L) {
+                            "Historial de protocolos"
+                        } else {
+                            "Historial · ${uiState.tagEquipo} · ${uiState.instalacionNombre}"
+                        },
                         sobreFondoOscuro = true
                     )
                 },
@@ -83,22 +97,31 @@ fun HistorialEquipoScreen(
             )
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (historialFiltrado.isEmpty()) {
+            FiltroProtocoloCombo(
+                protocolos = protocolosIndexados,
+                seleccion = filtrosSeleccionados,
+                onSeleccionChange = { filtrosSeleccionados = it }
+            )
+            if (protocolosFiltrados.isEmpty()) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.Center)
                 ) {
                     Text(
-                        text = "No existen protocolos disponibles para el equipo ${uiState.tagEquipo}.",
+                        text = if (idEquipo == 0L) {
+                            "No existen protocolos que coincidan con los filtros."
+                        } else {
+                            "No existen protocolos disponibles para el equipo ${uiState.tagEquipo}."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp)
@@ -106,10 +129,10 @@ fun HistorialEquipoScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(historialFiltrado) { proto ->
+                    items(protocolosFiltrados, key = { it.idProtocolo }) { proto ->
                         TarjetaHistorialProtocolo(
                             protocolo = proto,
                             esUsuarioCliente = esUsuarioCliente,

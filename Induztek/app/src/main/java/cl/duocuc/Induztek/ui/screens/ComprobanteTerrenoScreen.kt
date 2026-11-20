@@ -118,6 +118,12 @@ fun ComprobanteTerrenoScreen(
     LaunchedEffect(idProtocolo, usuarioActivo) {
         protocolo = viewModel.obtenerProtocoloVisible(idProtocolo, usuarioActivo)
     }
+    LaunchedEffect(mensajeRevision) {
+        mensajeRevision?.let {
+            snackbarHostState.showSnackbar(it)
+            mensajeRevision = null
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -335,7 +341,17 @@ fun ComprobanteTerrenoScreen(
                 ) {
                     Text("ANULAR PROTOCOLO")
                 }
-                mensajeRevision?.let { Text(it, color = MaterialTheme.colorScheme.onSurface) }
+                if (motivoRevision.isBlank() && estado in setOf(
+                        EstadoProtocolo.REGISTRADO_TERRENO,
+                        EstadoProtocolo.OBSERVADO
+                    )
+                ) {
+                    Text(
+                        "Escribe el motivo antes de observar o anular el protocolo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             }
 

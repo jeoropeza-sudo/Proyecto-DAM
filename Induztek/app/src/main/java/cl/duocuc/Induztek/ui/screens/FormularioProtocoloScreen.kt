@@ -1,8 +1,16 @@
 package cl.duocuc.Induztek.ui.screens
 
 import android.os.Build
+import android.graphics.Bitmap
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,17 +48,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.permisos.Permisos
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.components.TarjetaSeccion
 import cl.duocuc.Induztek.ui.theme.Dimens
+import cl.duocuc.Induztek.ui.theme.ErrorColor
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,9 +80,28 @@ fun FormularioProtocoloScreen(
     var confirmarRegistro by remember { mutableStateOf(false) }
     var confirmarAgregarEquipo by remember { mutableStateOf(false) }
     var confirmarCerrarVisita by remember { mutableStateOf(false) }
+    var evidenciaEquipo by remember(uiState.idEquipo) { mutableStateOf<ByteArray?>(null) }
+    var mensajePermisoCamara by remember { mutableStateOf<String?>(null) }
     val launcherPermisoNotificaciones = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {}
+    val launcherCamaraEquipo = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            evidenciaEquipo = ConvertidorImagen.aBytes(bitmap)
+            mensajePermisoCamara = null
+        }
+    }
+    val launcherPermisoCamara = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        if (concedido) {
+            launcherCamaraEquipo.launch(null)
+        } else {
+            mensajePermisoCamara = "Se necesita permiso de cámara para fotografiar el equipo."
+        }
+    }
     val esCliente = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)
     val tecnicoSinAsignaciones = usuarioActivo?.rolCodigo.equals(
         Rol.CODIGO_TECNICO,
@@ -84,24 +115,33 @@ fun FormularioProtocoloScreen(
     LaunchedEffect(uiState.idProtocoloRegistrado) {
         val idProtocolo = uiState.idProtocoloRegistrado ?: return@LaunchedEffect
         viewModel.limpiarProtocoloRegistrado()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            !Permisos.tiene(context, Permisos.NOTIFICACIONES)
-        ) {
-            launcherPermisoNotificaciones.launch(Permisos.NOTIFICACIONES)
-        }
+        viewModel.descartarNotificacionExito()
         onVerComprobante(idProtocolo)
+    }
+
+    LaunchedEffect(uiState.mensajeErrorFormulario) {
+        uiState.mensajeErrorFormulario?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.descartarErrorFormulario()
+        }
+    }
+
+    LaunchedEffect(uiState.mensajeNotificacionExito, uiState.idProtocoloRegistrado) {
+        val mensaje = uiState.mensajeNotificacionExito ?: return@LaunchedEffect
+        if (uiState.idProtocoloRegistrado == null) {
+            snackbarHostState.showSnackbar(mensaje)
+            viewModel.descartarNotificacionExito()
+        }
     }
 
     LaunchedEffect(usuarioActivo) {
         if (usuarioActivo != null) {
             viewModel.inicializarParaUsuario(usuarioActivo)
-        }
-    }
-
-    LaunchedEffect(uiState.mensajeErrorFormulario) {
-        val errorFormulario = uiState.mensajeErrorFormulario
-        if (errorFormulario != null) {
-            snackbarHostState.showSnackbar(errorFormulario)
+            if (!esCliente && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !Permisos.tiene(context, Permisos.NOTIFICACIONES)
+            ) {
+                launcherPermisoNotificaciones.launch(Permisos.NOTIFICACIONES)
+            }
         }
     }
 
@@ -190,10 +230,24 @@ fun FormularioProtocoloScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        value = uiState.tempAmbiente, onValueChange = { viewModel.onTempAmbienteCambia(it) }, label = { Text("T° Amb (°C) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
+                        value = uiState.tempAmbiente,
+                        onValueChange = { viewModel.onTempAmbienteCambia(it) },
+                        label = { Text("T° Amb (°C) *") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = uiState.mensajeErrorTemperatura != null,
+                        supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorTemperatura) },
+                        enabled = !esCliente && !visitaEnCurso,
+                        modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
-                        value = uiState.humedadPct, onValueChange = { viewModel.onHumedadPctCambia(it) }, label = { Text("Humedad (%) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente && !visitaEnCurso, modifier = Modifier.weight(1f)
+                        value = uiState.humedadPct,
+                        onValueChange = { viewModel.onHumedadPctCambia(it) },
+                        label = { Text("Humedad (%) *") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = uiState.mensajeErrorHumedad != null,
+                        supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorHumedad) },
+                        enabled = !esCliente && !visitaEnCurso,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 if (esTecnico) {
@@ -226,6 +280,8 @@ fun FormularioProtocoloScreen(
                         value = uiState.descripcionMantenimiento,
                         onValueChange = { viewModel.onDescripcionMantenimientoCambia(it) },
                         label = { Text("Descripción del mantenimiento *") },
+                        isError = uiState.mensajeErrorDescripcionMantenimiento != null,
+                        supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorDescripcionMantenimiento) },
                         enabled = !esCliente && !visitaEnCurso,
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2
@@ -250,6 +306,8 @@ fun FormularioProtocoloScreen(
                         value = uiState.motivoNoRealizada,
                         onValueChange = { viewModel.onMotivoNoRealizadaCambia(it) },
                         label = { Text("Motivo por el que no se realizó *") },
+                        isError = uiState.errorMotivoNoRealizada != null,
+                        supportingText = { ErrorCampoProtocolo(uiState.errorMotivoNoRealizada) },
                         enabled = !esCliente,
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2
@@ -279,6 +337,40 @@ fun FormularioProtocoloScreen(
                 }
             }
 
+            TarjetaSeccion(titulo = "EVIDENCIA FOTOGRÁFICA DEL EQUIPO") {
+                Text(
+                    "Toma una foto de la placa o del estado del equipo para adjuntarla al protocolo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                BotonPrincipal(
+                    texto = if (evidenciaEquipo == null) "Tomar foto del equipo" else "Volver a tomar foto",
+                    onClick = {
+                        if (Permisos.tiene(context, Permisos.CAMARA)) {
+                            launcherCamaraEquipo.launch(null)
+                        } else {
+                            launcherPermisoCamara.launch(Permisos.CAMARA)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    habilitado = !esCliente && !tecnicoSinAsignaciones
+                )
+                mensajePermisoCamara?.let {
+                    Text(it, color = ErrorColor, style = MaterialTheme.typography.bodySmall)
+                }
+                evidenciaEquipo?.let { bytes ->
+                    remember(bytes) { ConvertidorImagen.aBitmap(bytes)?.asImageBitmap() }?.let { imagen ->
+                        Image(
+                            bitmap = imagen,
+                            contentDescription = "Evidencia fotográfica del equipo",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(220.dp)
+                        )
+                    }
+                }
+            }
+
+            ErrorCampoProtocolo(uiState.mensajeErrorMediciones)
             if (uiState.pruebaRealizada) when (uiState.tipoEquipo) {
                 "Transformador" -> {
                     TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
@@ -405,21 +497,33 @@ fun FormularioProtocoloScreen(
             }
 
             TarjetaSeccion(titulo = "7. FIRMAS / RECEPCIÓN CLIENTE") {
-                OutlinedTextField(value = uiState.clienteRecibeNombre, onValueChange = { viewModel.onClienteRecibeNombreCambia(it) }, label = { Text("Nombre Receptor *") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = uiState.clienteRecibeNombre,
+                    onValueChange = { viewModel.onClienteRecibeNombreCambia(it) },
+                    label = { Text("Nombre Receptor *") },
+                    isError = uiState.mensajeErrorNombreClienteRecibe != null,
+                    supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorNombreClienteRecibe) },
+                    enabled = !esCliente && !visitaEnCurso,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedTextField(
                     value = uiState.clienteRecibeRut,
                     onValueChange = { viewModel.onClienteRecibeRutCambia(it) },
                     label = { Text("RUT Receptor *") },
                     isError = uiState.errorRutClienteRecibe,
-                    supportingText = {
-                        if (uiState.errorRutClienteRecibe) {
-                            Text("El RUT debe incluir un dígito verificador válido, por ejemplo 12.345.678-5.")
-                        }
-                    },
+                    supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorRutClienteRecibe) },
                     enabled = !esCliente && !visitaEnCurso,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(value = uiState.clienteRecibeCargo, onValueChange = { viewModel.onClienteRecibeCargoCambia(it) }, label = { Text("Cargo Receptor") }, enabled = !esCliente && !visitaEnCurso, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = uiState.clienteRecibeCargo,
+                    onValueChange = { viewModel.onClienteRecibeCargoCambia(it) },
+                    label = { Text("Cargo Receptor *") },
+                    isError = uiState.mensajeErrorCargoClienteRecibe != null,
+                    supportingText = { ErrorCampoProtocolo(uiState.mensajeErrorCargoClienteRecibe) },
+                    enabled = !esCliente && !visitaEnCurso,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (usuarioActivo != null && !esCliente) {
@@ -475,10 +579,9 @@ fun FormularioProtocoloScreen(
                 }
             }
 
-            }
-
             Spacer(Modifier.height(20.dp))
         }
+    }
     }
 
     if (usuarioActivo != null && confirmarRegistro) {
@@ -490,7 +593,10 @@ fun FormularioProtocoloScreen(
                 TextButton(
                     onClick = {
                         confirmarRegistro = false
-                        viewModel.onRegistrarProtocolo(usuarioActivo.idUsuario)
+                        viewModel.onRegistrarProtocolo(
+                            usuarioActivo.idUsuario,
+                            evidenciaEquipo = evidenciaEquipo
+                        )
                     }
                 ) {
                     Text("Registrar")
@@ -513,10 +619,12 @@ fun FormularioProtocoloScreen(
                 TextButton(
                     onClick = {
                         confirmarAgregarEquipo = false
-                        viewModel.onRegistrarProtocolo(
+                        val agregado = viewModel.onRegistrarProtocolo(
                             usuarioActivo.idUsuario,
-                            agregarAVisita = true
+                            agregarAVisita = true,
+                            evidenciaEquipo = evidenciaEquipo
                         )
+                        if (agregado) evidenciaEquipo = null
                     }
                 ) {
                     Text("Agregar")
@@ -585,6 +693,24 @@ fun SelectorDesplegable(
                     onClick = { onSeleccion(opcion); expandido = false }
                 )
             }
+        }
+    }
+
+}
+
+@Composable
+private fun ErrorCampoProtocolo(error: String?) {
+    AnimatedVisibility(
+        visible = error != null,
+        enter = fadeIn(tween(160)) + expandVertically(tween(180)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(160))
+    ) {
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }

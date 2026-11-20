@@ -15,10 +15,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,15 +29,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import cl.duocuc.Induztek.model.EstadoProtocolo
+import cl.duocuc.Induztek.model.FiltroProtocolos
 import cl.duocuc.Induztek.model.Usuario
-import cl.duocuc.Induztek.ui.styles.EstilosCampo
-import cl.duocuc.Induztek.ui.theme.Alerta
 import cl.duocuc.Induztek.ui.theme.Dimens
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.theme.ErrorColor
@@ -56,9 +51,7 @@ fun ClienteScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val historialRaw by viewModel.historial.collectAsState()
-
-    var busquedaTag by remember { mutableStateOf("") }
-    var filtroEstadoSeleccionado by remember { mutableStateOf("TODOS") }
+    var filtrosSeleccionados by remember { mutableStateOf(emptySet<String>()) }
 
     LaunchedEffect(usuarioActivo?.idUsuario) {
         usuarioActivo?.let {
@@ -67,16 +60,18 @@ fun ClienteScreen(
         }
     }
 
-    val protocolosVisibles = historialRaw.filter { proto ->
-        val st = EstadoProtocolo.desdeCodigo(proto.estado)
-        val coincideVisibilidad = st != EstadoProtocolo.BORRADOR && st != EstadoProtocolo.ANULADO
-        val coincideTag = proto.tagEquipo.contains(busquedaTag, ignoreCase = true) || proto.numeroProtocolo.contains(busquedaTag, ignoreCase = true)
-        val coincideFiltroEstado = when (filtroEstadoSeleccionado) {
-            "FORMALIZADO" -> st == EstadoProtocolo.FORMALIZADO
-            "PENDIENTE" -> st == EstadoProtocolo.REGISTRADO_TERRENO || st == EstadoProtocolo.OBSERVADO
-            else -> true
-        }
-        coincideVisibilidad && coincideTag && coincideFiltroEstado
+    val protocolosIndexados = remember(historialRaw) {
+        FiltroProtocolos.indexar(historialRaw)
+    }
+    val protocolosVisibles = remember(
+        protocolosIndexados,
+        filtrosSeleccionados
+    ) {
+        FiltroProtocolos.aplicarSeleccion(
+            protocolos = protocolosIndexados,
+            seleccion = filtrosSeleccionados,
+            soloVisiblesCliente = true
+        )
     }
 
     Scaffold(
@@ -112,31 +107,12 @@ fun ClienteScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = busquedaTag,
-                onValueChange = { busquedaTag = it },
-                label = { Text("Buscar por TAG o Nº Protocolo") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = EstilosCampo.forma
+            FiltroProtocoloCombo(
+                protocolos = protocolosIndexados,
+                seleccion = filtrosSeleccionados,
+                onSeleccionChange = { filtrosSeleccionados = it },
+                modifier = Modifier.fillMaxWidth()
             )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = filtroEstadoSeleccionado == "TODOS",
-                    onClick = { filtroEstadoSeleccionado = "TODOS" },
-                    label = { Text("Todos") }
-                )
-                FilterChip(
-                    selected = filtroEstadoSeleccionado == "PENDIENTE",
-                    onClick = { filtroEstadoSeleccionado = "PENDIENTE" },
-                    label = { Text("Pendientes") }
-                )
-                FilterChip(
-                    selected = filtroEstadoSeleccionado == "FORMALIZADO",
-                    onClick = { filtroEstadoSeleccionado = "FORMALIZADO" },
-                    label = { Text("Formalizados") }
-                )
-            }
 
             Text("CERTIFICADOS Y PROTOCOLOS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
@@ -145,8 +121,11 @@ fun ClienteScreen(
                     Text("No se encontraron registros para la búsqueda aplicada.", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                    items(protocolosVisibles) { proto ->
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                ) {
+                    items(protocolosVisibles, key = { it.idProtocolo }) { proto ->
                         val estadoObj = EstadoProtocolo.desdeCodigo(proto.estado)
                         Column {
                             Surface(

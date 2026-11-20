@@ -63,6 +63,10 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         _errorAuth.value = null
     }
 
+    fun limpiarErrorAuth() {
+        _errorAuth.value = null
+    }
+
     fun registrar(
         rut: String,
         nombre: String,

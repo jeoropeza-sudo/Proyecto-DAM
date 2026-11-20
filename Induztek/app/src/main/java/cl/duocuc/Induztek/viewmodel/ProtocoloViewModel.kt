@@ -122,51 +122,50 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun empresasParaAsociarCliente(usuario: Usuario?): List<ClienteCatalogoLocal> {
-        val administrador = usuario ?: return emptyList()
-        if (!puedeAsociarCliente(administrador)) return emptyList()
-
-        return db.listarEmpresasParaAsociacion()
-    }
-
-    fun clientesSinEmpresa(usuario: Usuario?): List<Usuario> {
-        val administrador = usuario ?: return emptyList()
-        if (!puedeAsociarCliente(administrador)) return emptyList()
-
-        return db.listarClientesSinEmpresa()
-    }
-
-    fun asociarClienteAEmpresa(idCliente: Long, idEmpresa: Long, usuario: Usuario?): Boolean {
-        val administrador = usuario ?: return false
-        if (!puedeAsociarCliente(administrador)) return false
-
-        return db.asociarClienteAEmpresa(idCliente, idEmpresa)
-    }
-
-    private fun puedeAsociarCliente(usuario: Usuario): Boolean {
-        if (!usuario.activo) return false
-        if (usuario.idUsuario <= 0) return false
-
-        return usuario.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
-            usuario.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
-    }
-
     fun tecnicosParaAsignacion(usuario: Usuario?): List<Usuario> =
-        if (usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)) {
+        if (puedeAdministrarAsignaciones(usuario)) {
             db.listarTecnicosActivos()
         } else {
             emptyList()
         }
 
+    fun clientesSinEmpresa(usuario: Usuario?): List<Usuario> =
+        if (puedeAdministrarAsignaciones(usuario)) {
+            db.listarUsuariosClienteSinEmpresa()
+        } else {
+            emptyList()
+        }
+
+    fun empresasParaAsociarCliente(usuario: Usuario?) =
+        if (puedeAdministrarAsignaciones(usuario)) {
+            db.listarEmpresasRegistradas()
+        } else {
+            emptyList()
+        }
+
+    fun asociarClienteAEmpresa(
+        idUsuarioCliente: Long,
+        idEmpresa: Long,
+        usuario: Usuario?
+    ): Boolean {
+        val responsable = usuario ?: return false
+        if (!puedeAdministrarAsignaciones(responsable)) return false
+        return db.asociarUsuarioClienteAEmpresa(
+            idUsuarioCliente,
+            idEmpresa,
+            responsable.idUsuario
+        )
+    }
+
     fun instalacionesParaAsignacion(usuario: Usuario?) =
-        if (usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)) {
+        if (puedeAdministrarAsignaciones(usuario)) {
             db.listarInstalacionesParaAsignacion()
         } else {
             emptyList()
         }
 
     fun idsAsignadosATecnico(idTecnico: Long, usuario: Usuario?): Set<Long> =
-        if (usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)) {
+        if (puedeAdministrarAsignaciones(usuario)) {
             db.listarIdsInstalacionesTecnico(idTecnico)
         } else {
             emptySet()
@@ -176,20 +175,24 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         idTecnico: Long,
         usuario: Usuario?
     ): Map<Long, String> =
-        if (usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)) {
+        if (puedeAdministrarAsignaciones(usuario)) {
             db.listarTecnicosPropietariosDeInstalaciones(idTecnico)
         } else {
             emptyMap()
         }
+
+    private fun puedeAdministrarAsignaciones(usuario: Usuario?): Boolean =
+        usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true) ||
+                usuario?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
 
     fun guardarAsignacionesTecnico(
         idTecnico: Long,
         idsInstalaciones: Set<Long>,
         usuario: Usuario?
     ): Boolean {
-        val jefeTecnico = usuario ?: return false
-        if (!jefeTecnico.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)) return false
-        return db.guardarAsignacionesTecnico(idTecnico, idsInstalaciones, jefeTecnico.idUsuario)
+        val responsable = usuario ?: return false
+        if (!puedeAdministrarAsignaciones(responsable)) return false
+        return db.guardarAsignacionesTecnico(idTecnico, idsInstalaciones, responsable.idUsuario)
     }
 
     private fun obtenerHoraActual(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -382,7 +385,20 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun cargarHistorialEquipo(idEquipo: Long, usuario: Usuario?) {
-        val protocolos = if (
+        val protocolos = if (idEquipo == 0L) {
+            when {
+                usuario?.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true) ->
+                    usuario?.idUsuario?.let(db::listarProtocolosTecnico) ?: emptyList()
+                usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) -> {
+                    val idEmpresa = usuario?.idEmpresaCliente
+                    if (idEmpresa == null) emptyList() else db.listarProtocolosCliente(idEmpresa)
+                }
+                usuario?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
+                        usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true) ->
+                    db.listarProtocolosTodos()
+                else -> emptyList()
+            }
+        } else if (
             usuario != null && usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)
         ) {
             if (!db.tecnicoPuedeVerEquipo(usuario.idUsuario, idEquipo)) {
@@ -401,7 +417,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             db.listarProtocolosPorEquipo(idEquipo)
         }
         _historial.value = protocolos
-        protocolos.firstOrNull()?.let { protocolo ->
+        if (idEquipo != 0L) protocolos.firstOrNull()?.let { protocolo ->
             _uiState.update {
                 it.copy(tagEquipo = protocolo.tagEquipo, instalacionNombre = protocolo.instalacionNombre)
             }
@@ -503,11 +519,16 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun onTempAmbienteCambia(valor: String) = _uiState.update { it.copy(tempAmbiente = valor) }
-    fun onHumedadPctCambia(valor: String) = _uiState.update { it.copy(humedadPct = valor) }
+    fun onTempAmbienteCambia(valor: String) =
+        _uiState.update { it.copy(tempAmbiente = valor, mensajeErrorTemperatura = null) }
+    fun onHumedadPctCambia(valor: String) =
+        _uiState.update { it.copy(humedadPct = valor, mensajeErrorHumedad = null) }
     fun onHoraInicioCambia(valor: String) = _uiState.update { it.copy(horaInicio = valor) }
-    fun onTipoVisitaCambia(tipo: String) = _uiState.update { it.copy(tipoVisita = tipo) }
-    fun onDescripcionMantenimientoCambia(valTexto: String) = _uiState.update { it.copy(descripcionMantenimiento = valTexto) }
+    fun onTipoVisitaCambia(tipo: String) = _uiState.update {
+        it.copy(tipoVisita = tipo, mensajeErrorDescripcionMantenimiento = null)
+    }
+    fun onDescripcionMantenimientoCambia(valTexto: String) =
+        _uiState.update { it.copy(descripcionMantenimiento = valTexto, mensajeErrorDescripcionMantenimiento = null) }
     fun onEsMedicionPosteriorCambia(esPosterior: Boolean) = _uiState.update { it.copy(esMedicionPosterior = esPosterior) }
 
     fun onPruebaRealizadaCambia(realizada: Boolean) {
@@ -516,7 +537,13 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun onMotivoNoRealizadaCambia(motivo: String) {
-        _uiState.update { it.copy(motivoNoRealizada = motivo, errorMotivoNoRealizada = null) }
+        _uiState.update {
+            it.copy(
+                motivoNoRealizada = motivo,
+                errorMotivoNoRealizada = null,
+                mensajeErrorFormulario = null
+            )
+        }
     }
 
     fun onAislacionCambia(index: Int, l1Str: String, l10Str: String) {
@@ -543,7 +570,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             resultado = res
         )
 
-        _uiState.update { it.copy(aislacionFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update {
+            it.copy(aislacionFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null)
+        }
         evaluarVariacionHistorica(l1)
         recalcularGlobal()
     }
@@ -585,7 +614,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             resultado = res
         )
 
-        _uiState.update { it.copy(ttrFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update { it.copy(ttrFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null) }
         recalcularGlobal()
     }
 
@@ -611,7 +640,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             resultado = res
         )
 
-        _uiState.update { it.copy(contactosFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update { it.copy(contactosFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null) }
         recalcularGlobal()
     }
 
@@ -646,7 +675,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             resultado = res
         )
 
-        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null) }
         recalcularGlobal()
     }
 
@@ -654,7 +683,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         val lista = _uiState.value.releFilas.toMutableList()
         if (index !in lista.indices) return
         lista[index] = lista[index].copy(corrienteMedidaA = corriente)
-        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null) }
         onReleMedicionCambia(index, lista[index].tiempoMedidoMs, lista[index].operaCorrectamente)
     }
 
@@ -666,23 +695,30 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             operaCorrectamente = opera,
             resultado = if (!opera) "RECHAZADO" else if (fila.tiempoMedidoMs.isBlank()) "PENDIENTE" else fila.resultado
         )
-        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update { it.copy(releFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null) }
         onReleMedicionCambia(index, fila.tiempoMedidoMs, opera)
     }
 
-    fun onClienteRecibeNombreCambia(valor: String) = _uiState.update { it.copy(clienteRecibeNombre = valor) }
+    fun onClienteRecibeNombreCambia(valor: String) =
+        _uiState.update { it.copy(clienteRecibeNombre = valor, mensajeErrorNombreClienteRecibe = null) }
 
     fun onClienteRecibeRutCambia(valor: String) {
         val esValido = ValidarRut.validarRut(valor)
+        val errorRut = when {
+            valor.isBlank() || esValido -> null
+            else -> "El RUT debe incluir un dígito verificador válido, por ejemplo 12.345.678-5."
+        }
         _uiState.update {
             it.copy(
                 clienteRecibeRut = valor,
-                errorRutClienteRecibe = !esValido && valor.isNotBlank()
+                errorRutClienteRecibe = errorRut != null,
+                mensajeErrorRutClienteRecibe = errorRut
             )
         }
     }
 
-    fun onClienteRecibeCargoCambia(valor: String) = _uiState.update { it.copy(clienteRecibeCargo = valor) }
+    fun onClienteRecibeCargoCambia(valor: String) =
+        _uiState.update { it.copy(clienteRecibeCargo = valor, mensajeErrorCargoClienteRecibe = null) }
     fun onIngenieroNombreCambia(valor: String) =
         _uiState.update { it.copy(ingenieroNombre = valor, mensajeErrorFormulario = null) }
     fun onObservacionesCambia(valor: String) = _uiState.update { it.copy(observaciones = valor) }
@@ -711,55 +747,57 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(resultadoGlobal = peor) }
     }
 
-    fun onRegistrarProtocolo(idUsuarioActivo: Long, agregarAVisita: Boolean = false): Boolean {
+    fun onRegistrarProtocolo(
+        idUsuarioActivo: Long,
+        agregarAVisita: Boolean = false,
+        evidenciaEquipo: ByteArray? = null
+    ): Boolean {
         val estado = _uiState.value
+        _uiState.update {
+            it.copy(
+                mensajeErrorFormulario = null,
+                mensajeErrorTemperatura = null,
+                mensajeErrorHumedad = null,
+                mensajeErrorRutClienteRecibe = null,
+                mensajeErrorNombreClienteRecibe = null,
+                mensajeErrorCargoClienteRecibe = null,
+                mensajeErrorDescripcionMantenimiento = null,
+                mensajeErrorMediciones = null,
+                errorRutClienteRecibe = false,
+                errorMotivoNoRealizada = null
+            )
+        }
 
         val temperatura = estado.tempAmbiente.replace(',', '.').toDoubleOrNull()
         val humedad = estado.humedadPct.replace(',', '.').toDoubleOrNull()
-        if (temperatura == null || !temperatura.isFinite()) {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "La temperatura debe ser un número válido en °C. Revisa el valor ingresado.")
-            }
-            return false
-        }
+        val errorTemperatura = if (temperatura == null || !temperatura.isFinite()) {
+            "Ingresa una temperatura numérica, por ejemplo 20 o 20,5."
+        } else null
+        val errorHumedad = if (humedad == null || !humedad.isFinite() || humedad !in 0.0..100.0) {
+            "Ingresa un valor de humedad entre 0 y 100 %."
+        } else null
+        val errorRutReceptor = if (!ValidarRut.validarRut(estado.clienteRecibeRut)) {
+            if (estado.clienteRecibeRut.isBlank()) "Ingresa el RUT de quien recibe."
+            else "El RUT debe incluir un dígito verificador válido, por ejemplo 12.345.678-5."
+        } else null
+        val errorNombreReceptor =
+            if (estado.clienteRecibeNombre.isBlank()) "Ingresa el nombre de quien recibe." else null
+        val errorCargoReceptor =
+            if (estado.clienteRecibeCargo.isBlank()) "Ingresa el cargo de quien recibe." else null
 
-        if (humedad == null || !humedad.isFinite() || humedad !in 0.0..100.0) {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "La humedad debe ser un número entre 0 y 100 %. Corrige el valor ingresado.")
-            }
-            return false
-        }
-
-        if (estado.clienteRecibeRut.isBlank()) {
+        if (
+            errorTemperatura != null || errorHumedad != null || errorRutReceptor != null ||
+            errorNombreReceptor != null || errorCargoReceptor != null
+        ) {
             _uiState.update {
                 it.copy(
-                    errorRutClienteRecibe = true,
-                    mensajeErrorFormulario = "Ingresa el RUT de la persona que recibe el acta, incluido su dígito verificador."
+                    mensajeErrorTemperatura = errorTemperatura,
+                    mensajeErrorHumedad = errorHumedad,
+                    mensajeErrorRutClienteRecibe = errorRutReceptor,
+                    errorRutClienteRecibe = errorRutReceptor != null,
+                    mensajeErrorNombreClienteRecibe = errorNombreReceptor,
+                    mensajeErrorCargoClienteRecibe = errorCargoReceptor
                 )
-            }
-            return false
-        }
-
-        if (!ValidarRut.validarRut(estado.clienteRecibeRut)) {
-            _uiState.update {
-                it.copy(
-                    errorRutClienteRecibe = true,
-                    mensajeErrorFormulario = "El RUT del receptor no es válido. Revisa que incluya el dígito verificador correcto."
-                )
-            }
-            return false
-        }
-
-        if (estado.clienteRecibeNombre.isBlank()) {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "Ingresa el nombre de la persona que recibe el acta.")
-            }
-            return false
-        }
-
-        if (estado.clienteRecibeCargo.isBlank()) {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "Ingresa el cargo de la persona que recibe el acta.")
             }
             return false
         }
@@ -769,7 +807,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             estado.descripcionMantenimiento.isBlank()
         ) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "Describe el mantenimiento realizado en el campo «Descripción del mantenimiento» antes de registrar.")
+                it.copy(mensajeErrorDescripcionMantenimiento = "Describe el mantenimiento realizado para cerrar esta visita.")
             }
             return false
         }
@@ -779,7 +817,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 _uiState.update {
                     it.copy(
                         errorMotivoNoRealizada = "Explica por qué no se realizó la prueba.",
-                        mensajeErrorFormulario = "Ingresa la justificación de la prueba no realizada."
+                        mensajeErrorFormulario = null
                     )
                 }
                 return false
@@ -812,20 +850,42 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             if (!medicionesCompletas) {
-                val detalleMediciones = when (estado.tipoEquipo) {
-                    "Transformador" ->
-                        "Completa aislamiento, relación de transformación y resistencia de devanados antes de registrar."
-                    "Interruptor", "Celda MT" ->
-                        "Completa las lecturas de aislamiento y resistencia de contactos antes de registrar."
-                    "Cable de poder" ->
-                        "Completa las lecturas de aislamiento de todas las fases antes de registrar."
-                    "Relé de protección" ->
-                        "Completa corriente, resultado de operación y tiempo de actuación cuando corresponda."
-                    else ->
-                        "Selecciona un tipo de equipo y completa sus mediciones obligatorias."
-                }
+                val detalleFaltante = when (estado.tipoEquipo) {
+                    "Transformador" -> {
+                        val aislacionFaltante = estado.aislacionFilas.firstOrNull {
+                            !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+                        }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+                        val ttrFaltante = estado.ttrFilas.firstOrNull {
+                            it.relacionTeorica <= 0 || !esPositivo(it.relacionMedida)
+                        }?.let { "TTR ${it.fase}: ingresa una relación medida válida." }
+                        val devanadoFaltante = estado.devanadoFilas.firstOrNull {
+                            !esPositivo(it.faseU) || !esPositivo(it.faseV) || !esPositivo(it.faseW) ||
+                                it.resultadoManual !in setOf("APROBADO", "OBSERVADO", "RECHAZADO")
+                        }?.let { "Devanado ${it.devanado}: completa las fases U, V y W y selecciona su evaluación." }
+                        aislacionFaltante ?: ttrFaltante ?: devanadoFaltante
+                    }
+                    "Interruptor", "Celda MT" -> {
+                        val aislacionFaltante = estado.aislacionFilas.firstOrNull {
+                            !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+                        }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+                        val contactoFaltante = estado.contactosFilas.firstOrNull {
+                            it.valorMaximoPlacaUohm <= 0 || !esPositivo(it.valorMedidoUohm)
+                        }?.let { "${it.polo}: ingresa una resistencia de contacto mayor que cero." }
+                        aislacionFaltante ?: contactoFaltante
+                    }
+                    "Cable de poder" -> estado.aislacionFilas.firstOrNull {
+                        !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+                    }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+                    "Relé de protección" -> estado.releFilas.firstOrNull {
+                        !esPositivo(it.corrienteMedidaA) || it.operaCorrectamente == null ||
+                            (it.operaCorrectamente && !esPositivo(it.tiempoMedidoMs))
+                    }?.let {
+                        "Relé ${it.funcion}: ingresa corriente y tiempo medidos, e indica si operó."
+                    }
+                    else -> null
+                } ?: "Revisa las mediciones requeridas para este tipo de equipo."
                 _uiState.update {
-                    it.copy(mensajeErrorFormulario = detalleMediciones)
+                    it.copy(mensajeErrorMediciones = detalleFaltante)
                 }
                 return false
             }
@@ -953,8 +1013,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 idEquipo = estado.idEquipo,
                 numeroOt = estado.otNumero,
                 fechaHora = fechaHoraPrueba,
-                temperaturaC = temperatura,
-                humedadPct = humedad,
+                temperaturaC = checkNotNull(temperatura),
+                humedadPct = checkNotNull(humedad),
                 observaciones = if (estado.pruebaRealizada) estado.observaciones else
                     "NO REALIZADA: ${estado.motivoNoRealizada}",
                 tipoVisita = estado.tipoVisita.replace(' ', '_'),
@@ -967,7 +1027,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 resultadoGlobal = if (estado.pruebaRealizada) estado.resultadoGlobal else "NO REALIZADA",
                 estado = "REGISTRADO_TERRENO",
                 mediciones = mediciones,
-                ingenieroNombre = estado.ingenieroNombre.trim()
+                ingenieroNombre = estado.ingenieroNombre.trim(),
+                evidenciaEquipo = evidenciaEquipo
             )
 
         if (agregarAVisita) {
@@ -1057,9 +1118,16 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     idProtocoloRegistrado = idInsertado
                 )
             }
+            db.obtenerProtocoloPorId(idInsertado)?.let { protocolo ->
+                NotificacionesLocales.notificarEstadoProtocolo(
+                    getApplication(),
+                    protocolo.numeroProtocolo,
+                    protocolo.estado
+                )
+            }
         } else {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "Error al guardar el protocolo en la base de datos.")
+                it.copy(mensajeErrorFormulario = "No se pudo guardar el protocolo. Comprueba que el equipo y los instrumentos seleccionados sigan disponibles e inténtalo otra vez.")
             }
         }
         return exito
@@ -1077,7 +1145,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         val ids = db.registrarProtocolosVisitaLocal(protocolosPendientesVisita.toList())
         if (ids.size != protocolosPendientesVisita.size) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "No se pudo guardar la visita completa. Revise instalaciones e instrumentos.")
+                it.copy(mensajeErrorFormulario = "No se guardaron todos los protocolos de la visita. Comprueba que las instalaciones e instrumentos sigan disponibles antes de volver a intentarlo.")
             }
             return false
         }
@@ -1115,7 +1183,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 faseV = vStr,
                 faseW = wStr
             )
-            _uiState.update { it.copy(devanadoFilas = lista, mensajeErrorFormulario = null) }
+            _uiState.update {
+                it.copy(devanadoFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null)
+            }
             recalcularGlobal()
         }
     }
@@ -1124,7 +1194,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         val lista = _uiState.value.devanadoFilas.toMutableList()
         if (index !in lista.indices || resultado !in setOf("APROBADO", "OBSERVADO", "RECHAZADO")) return
         lista[index] = lista[index].copy(resultadoManual = resultado)
-        _uiState.update { it.copy(devanadoFilas = lista, mensajeErrorFormulario = null) }
+        _uiState.update {
+            it.copy(devanadoFilas = lista, mensajeErrorFormulario = null, mensajeErrorMediciones = null)
+        }
         recalcularGlobal()
     }
 
@@ -1150,6 +1222,10 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun descartarNotificacionExito() {
         _uiState.update { it.copy(mensajeNotificacionExito = null) }
+    }
+
+    fun descartarErrorFormulario() {
+        _uiState.update { it.copy(mensajeErrorFormulario = null) }
     }
 
     fun onLimpiar() {

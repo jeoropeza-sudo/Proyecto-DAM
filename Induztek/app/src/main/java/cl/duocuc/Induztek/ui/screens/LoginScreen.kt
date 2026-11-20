@@ -1,6 +1,5 @@
 package cl.duocuc.Induztek.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,11 +29,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import cl.duocuc.Induztek.ui.components.LogoInduztek
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -61,55 +64,80 @@ fun LoginScreen(
     var clave by remember { mutableStateOf("") }
     var claveVisible by remember { mutableStateOf(false) }
     var accesosPruebaExpandidos by remember { mutableStateOf(false) }
+    var errorCorreo by remember { mutableStateOf<String?>(null) }
+    var errorClave by remember { mutableStateOf<String?>(null) }
 
-    val errorAuth by viewModel.errorAuth.collectAsState()
     val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val autenticar = {
         focusManager.clearFocus()
-        viewModel.iniciarSesion(correo, clave)
+        when {
+            correo.isBlank() -> {
+                errorCorreo = "Ingresa tu correo electrónico para iniciar sesión."
+                errorClave = null
+            }
+            clave.isBlank() -> {
+                errorCorreo = null
+                errorClave = "Ingresa tu contraseña para iniciar sesión."
+            }
+            else -> {
+                errorCorreo = null
+                errorClave = null
+                if (viewModel.iniciarSesion(correo, clave) == null) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("No se pudo iniciar sesión. Revisa el correo y la contraseña.")
+                    }
+                }
+            }
+        }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
-    ) {
-        Column(
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent
+    ) { padding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(padding)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                )
         ) {
-            LogoInduztek(
-                sobreFondoOscuro = true,
+            Column(
                 modifier = Modifier
-                    .size(190.dp)
-                    .padding(bottom = 12.dp)
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                LogoInduztek(
+                    sobreFondoOscuro = true,
+                    modifier = Modifier
+                        .size(190.dp)
+                        .padding(bottom = 12.dp)
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         Text(
                             text = "Bienvenido",
                             style = MaterialTheme.typography.headlineSmall,
@@ -117,99 +145,104 @@ fun LoginScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                    }
-
-                    OutlinedTextField(
-                        value = correo,
-                        onValueChange = { correo = it },
-                        label = { Text("Correo electrónico") },
-                        leadingIcon = {
-                            Icon(Icons.Filled.MailOutline, contentDescription = null)
-                        },
-                        isError = errorAuth != null,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = clave,
-                        onValueChange = { clave = it },
-                        label = { Text("Contraseña") },
-                        leadingIcon = {
-                            Icon(Icons.Filled.Lock, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            TextButton(onClick = { claveVisible = !claveVisible }) {
-                                Icon(
-                                    imageVector = if (claveVisible) {
-                                        Icons.Filled.VisibilityOff
-                                    } else {
-                                        Icons.Filled.Visibility
-                                    },
-                                    contentDescription = if (claveVisible) {
-                                        "Ocultar contraseña"
-                                    } else {
-                                        "Mostrar contraseña"
-                                    }
-                                )
-                            }
-                        },
-                        visualTransformation = if (claveVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        isError = errorAuth != null,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { autenticar() }),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    errorAuth?.let { mensaje ->
-                        Text(
-                            text = mensaje,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+                        OutlinedTextField(
+                            value = correo,
+                            onValueChange = {
+                                correo = it
+                                errorCorreo = null
+                                viewModel.limpiarErrorAuth()
+                            },
+                            label = { Text("Correo electrónico") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.MailOutline, contentDescription = null)
+                            },
+                            isError = errorCorreo != null,
+                            supportingText = {
+                                errorCorreo?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
-                    }
 
-                    Button(
-                        onClick = { autenticar() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Text(
-                            text = "Ingresar",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                        OutlinedTextField(
+                            value = clave,
+                            onValueChange = {
+                                clave = it
+                                errorClave = null
+                                viewModel.limpiarErrorAuth()
+                            },
+                            label = { Text("Contraseña") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Lock, contentDescription = null)
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { claveVisible = !claveVisible }) {
+                                    Icon(
+                                        imageVector = if (claveVisible) {
+                                            Icons.Filled.VisibilityOff
+                                        } else {
+                                            Icons.Filled.Visibility
+                                        },
+                                        contentDescription = if (claveVisible) {
+                                            "Ocultar contraseña"
+                                        } else {
+                                            "Mostrar contraseña"
+                                        }
+                                    )
+                                }
+                            },
+                            visualTransformation = if (claveVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            isError = errorClave != null,
+                            supportingText = {
+                                errorClave?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { autenticar() }),
+                            modifier = Modifier.fillMaxWidth()
                         )
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = onIrARecuperarClave) {
-                            Text("Recuperar clave", color = MaterialTheme.colorScheme.onSurface)
+                        Button(
+                            onClick = { autenticar() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                        ) {
+                            Text(
+                                text = "Ingresar",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
-                        TextButton(onClick = onIrARegistro) {
-                            Text("Crear cuenta", color = MaterialTheme.colorScheme.onSurface)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = onIrARecuperarClave) {
+                                Text("Recuperar clave", color = MaterialTheme.colorScheme.onSurface)
+                            }
+                            TextButton(onClick = onIrARegistro) {
+                                Text("Crear cuenta", color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
     }
 }

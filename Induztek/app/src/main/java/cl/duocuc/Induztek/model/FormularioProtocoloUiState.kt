@@ -147,6 +147,13 @@ data class FormularioProtocoloUiState(
     val clienteRecibeRut: String = "",
     val clienteRecibeCargo: String = "",
     val errorRutClienteRecibe: Boolean = false,
+    val mensajeErrorRutClienteRecibe: String? = null,
+    val mensajeErrorNombreClienteRecibe: String? = null,
+    val mensajeErrorCargoClienteRecibe: String? = null,
+    val mensajeErrorTemperatura: String? = null,
+    val mensajeErrorHumedad: String? = null,
+    val mensajeErrorDescripcionMantenimiento: String? = null,
+    val mensajeErrorMediciones: String? = null,
 
     val lecturaAnterior1Min: Double? = 9800.0,
     val variacionDetectada: Boolean = false,

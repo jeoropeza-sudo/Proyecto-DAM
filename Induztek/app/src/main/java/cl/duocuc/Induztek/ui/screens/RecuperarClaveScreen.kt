@@ -1,13 +1,44 @@
 package cl.duocuc.Induztek.ui.screens
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -30,21 +61,23 @@ fun RecuperarClaveScreen(
     var respuesta by remember { mutableStateOf("") }
     var nuevaClave by remember { mutableStateOf("") }
     var repetirClave by remember { mutableStateOf("") }
-    var mensaje by remember { mutableStateOf<String?>(null) }
-    var esError by remember { mutableStateOf(false) }
+    var errorCorreo by remember { mutableStateOf<String?>(null) }
+    var errorRespuesta by remember { mutableStateOf<String?>(null) }
+    var errorNuevaClave by remember { mutableStateOf<String?>(null) }
+    var errorRepetirClave by remember { mutableStateOf<String?>(null) }
+    var mostrarConfirmacion by remember { mutableStateOf(false) }
+
+    val seguridad = ValidarContrasena.nivelSeguridad(nuevaClave)
     val claveEvaluada = nuevaClave.trim()
     val cumpleLongitud = claveEvaluada.length >= ValidarContrasena.LONGITUD_MINIMA
-    val tieneMayuscula = claveEvaluada.any { it.isUpperCase() }
-    val tieneNumero = claveEvaluada.any { it.isDigit() }
+    val tieneMayuscula = claveEvaluada.any(Char::isUpperCase)
+    val tieneNumero = claveEvaluada.any(Char::isDigit)
     val tieneEspecial = claveEvaluada.any { !it.isLetterOrDigit() }
-    val seguridad = ValidarContrasena.nivelSeguridad(nuevaClave)
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    MarcaCompacta(subtitulo = "Recuperar contraseña", sobreFondoOscuro = true)
-                },
+                title = { MarcaCompacta(subtitulo = "Recuperar contraseña", sobreFondoOscuro = true) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -52,6 +85,24 @@ fun RecuperarClaveScreen(
             )
         }
     ) { innerPadding ->
+        if (mostrarConfirmacion) {
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmacion = false },
+                title = { Text("Contraseña actualizada") },
+                text = { Text("Ya puedes iniciar sesión con tu nueva contraseña.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            mostrarConfirmacion = false
+                            onClaveActualizada()
+                        }
+                    ) {
+                        Text("Ir a iniciar sesión")
+                    }
+                }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -73,7 +124,7 @@ fun RecuperarClaveScreen(
                         "Recupera el acceso",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         "Verifica tu identidad para establecer una nueva contraseña.",
@@ -92,33 +143,47 @@ fun RecuperarClaveScreen(
                     respuesta = ""
                     nuevaClave = ""
                     repetirClave = ""
-                    mensaje = null
+                    errorCorreo = null
+                    errorRespuesta = null
+                    errorNuevaClave = null
+                    errorRepetirClave = null
                     expandidoPregunta = false
                 },
                 label = { Text("Correo Electrónico Registrado") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                isError = errorCorreo != null,
+                supportingText = { ErrorInline(errorCorreo) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Button(
                 onClick = {
-                    if (correo.isBlank()) {
-                        puedeRecuperar = false
-                        mensaje = "Ingresa el correo registrado."
-                        esError = true
-                    } else if (viewModel.existeUsuarioActivo(correo)) {
-                        puedeRecuperar = true
-                        preguntaSeleccionada = null
-                        respuesta = ""
-                        nuevaClave = ""
-                        repetirClave = ""
-                        mensaje = null
-                        esError = false
-                    } else {
-                        puedeRecuperar = false
-                        preguntaSeleccionada = null
-                        mensaje = "No se encontró ningún usuario activo con ese correo."
-                        esError = true
+                    val correoIngresado = correo.trim()
+                    when {
+                        correoIngresado.isBlank() -> {
+                            puedeRecuperar = false
+                            errorCorreo = "Ingresa el correo asociado a tu cuenta."
+                        }
+                        !android.util.Patterns.EMAIL_ADDRESS.matcher(correoIngresado).matches() -> {
+                            puedeRecuperar = false
+                            errorCorreo = "Ingresa un correo válido, por ejemplo nombre@empresa.cl."
+                        }
+                        viewModel.existeUsuarioActivo(correoIngresado) -> {
+                            correo = correoIngresado
+                            puedeRecuperar = true
+                            preguntaSeleccionada = null
+                            respuesta = ""
+                            nuevaClave = ""
+                            repetirClave = ""
+                            errorCorreo = null
+                            errorRespuesta = null
+                            errorNuevaClave = null
+                            errorRepetirClave = null
+                        }
+                        else -> {
+                            puedeRecuperar = false
+                            errorCorreo = "No encontramos una cuenta activa con ese correo. Verifica que esté escrito correctamente."
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -133,7 +198,7 @@ fun RecuperarClaveScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
-                        value = preguntaSeleccionada ?: "",
+                        value = preguntaSeleccionada.orEmpty(),
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Elige nuevamente tu pregunta de seguridad") },
@@ -163,20 +228,29 @@ fun RecuperarClaveScreen(
 
                 OutlinedTextField(
                     value = respuesta,
-                    onValueChange = { respuesta = it },
-                    label = { Text("Su Respuesta") },
+                    onValueChange = {
+                        respuesta = it
+                        errorRespuesta = null
+                    },
+                    label = { Text("Respuesta de seguridad") },
+                    isError = errorRespuesta != null,
+                    supportingText = { ErrorInline(errorRespuesta) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = nuevaClave,
-                    onValueChange = { nuevaClave = it },
-                    label = { Text("Nueva Contraseña") },
+                    onValueChange = {
+                        nuevaClave = it
+                        errorNuevaClave = null
+                    },
+                    label = { Text("Nueva contraseña") },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = errorNuevaClave != null,
+                    supportingText = { ErrorInline(errorNuevaClave) },
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 Text(
                     text = when {
                         seguridad == 4 -> "Seguridad: Fuerte"
@@ -190,7 +264,7 @@ fun RecuperarClaveScreen(
                         else -> MaterialTheme.colorScheme.error
                     }
                 )
-                LinearProgressIndicator(
+                androidx.compose.material3.LinearProgressIndicator(
                     progress = seguridad / 4f,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -204,54 +278,47 @@ fun RecuperarClaveScreen(
 
                 OutlinedTextField(
                     value = repetirClave,
-                    onValueChange = { repetirClave = it },
+                    onValueChange = {
+                        repetirClave = it
+                        errorRepetirClave = null
+                    },
                     label = { Text("Repetir contraseña") },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = repetirClave.isNotEmpty() && repetirClave != nuevaClave,
-                    supportingText = {
-                        if (repetirClave.isNotEmpty() && repetirClave != nuevaClave) {
-                            Text("Las contraseñas no coinciden.")
-                        }
-                    },
+                    isError = errorRepetirClave != null,
+                    supportingText = { ErrorInline(errorRepetirClave) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Button(
                     onClick = {
-                        val pregunta = preguntaSeleccionada
                         when {
-                            pregunta == null -> {
-                                mensaje = "Selecciona tu pregunta de seguridad."
-                                esError = true
+                            preguntaSeleccionada == null -> {
+                                errorRespuesta = "Selecciona la pregunta de seguridad que registraste."
                             }
                             respuesta.isBlank() -> {
-                                mensaje = "Ingresa la respuesta de seguridad."
-                                esError = true
+                                errorRespuesta = "Ingresa la respuesta de seguridad."
                             }
                             !ValidarContrasena.esSegura(nuevaClave) -> {
-                                mensaje = "La contraseña debe tener mínimo ${ValidarContrasena.LONGITUD_MINIMA} caracteres, mayúscula, número y carácter especial."
-                                esError = true
+                                errorNuevaClave =
+                                    "La contraseña debe tener mínimo ${ValidarContrasena.LONGITUD_MINIMA} caracteres, mayúscula, número y carácter especial."
                             }
                             nuevaClave != repetirClave -> {
-                                mensaje = "Las contraseñas no coinciden."
-                                esError = true
+                                errorRepetirClave = "Las contraseñas no coinciden. Repite la nueva contraseña."
+                            }
+                            viewModel.recuperarClaveConRespuesta(
+                                correo,
+                                preguntaSeleccionada.orEmpty(),
+                                respuesta,
+                                nuevaClave
+                            ) -> {
+                                errorRespuesta = null
+                                errorNuevaClave = null
+                                errorRepetirClave = null
+                                mostrarConfirmacion = true
                             }
                             else -> {
-                                val exito = viewModel.recuperarClaveConRespuesta(
-                                    correo,
-                                    pregunta,
-                                    respuesta,
-                                    nuevaClave
-                                )
-                                if (exito) {
-                                    mensaje = "Contraseña actualizada con éxito."
-                                    esError = false
-                                    onClaveActualizada()
-                                } else {
-                                    mensaje = "La pregunta o respuesta no coincide. Verifica tus datos."
-                                    esError = true
-                                }
+                                errorRespuesta = "La pregunta o respuesta no coincide. Verifica tus datos."
                             }
                         }
                     },
@@ -259,15 +326,6 @@ fun RecuperarClaveScreen(
                 ) {
                     Text("ACTUALIZAR CONTRASEÑA")
                 }
-            }
-
-            val textoMensaje = mensaje
-            if (textoMensaje != null) {
-                Text(
-                    text = textoMensaje,
-                    color = if (esError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -278,5 +336,16 @@ fun RecuperarClaveScreen(
                 Text("Volver al Inicio de Sesión", color = MaterialTheme.colorScheme.onSurface)
             }
         }
+    }
+}
+
+@Composable
+private fun ErrorInline(error: String?) {
+    AnimatedVisibility(
+        visible = error != null,
+        enter = fadeIn(tween(160)) + expandVertically(tween(180)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(160))
+    ) {
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }

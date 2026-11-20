@@ -325,7 +325,11 @@ fun PerfilScreen(
                         Text("Perfil:", fontWeight = FontWeight.Bold)
                         Text(perfilNombre)
                     }
-                    if (errorPerfil != null) {
+                    AnimatedVisibility(
+                        visible = errorPerfil != null,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
                         Text(errorPerfil.orEmpty(), color = ErrorColor, style = MaterialTheme.typography.bodySmall)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -452,8 +456,12 @@ fun PerfilScreen(
                             colors = EstilosCampo.colores()
                         )
 
-                        if (errorClave != null) {
-                            Text(text = errorClave!!, color = ErrorColor, style = MaterialTheme.typography.bodySmall)
+                        AnimatedVisibility(
+                            visible = errorClave != null,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Text(text = errorClave.orEmpty(), color = ErrorColor, style = MaterialTheme.typography.bodySmall)
                         }
 
                         BotonPrincipal(

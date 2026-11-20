@@ -1,6 +1,9 @@
 package cl.duocuc.Induztek.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -352,13 +355,21 @@ fun AsignacionesTecnicosScreen(
                     }
                 }
 
-                val errorAsignacion = mensaje
-                if (errorAsignacion != null) {
-                    Text(
-                        errorAsignacion,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                AnimatedVisibility(
+                    visible = mensaje != null,
+                    enter = fadeIn() + slideInVertically { it / 2 }
+                ) {
+                    mensaje?.let { texto ->
+                        Text(
+                            texto,
+                            color = if (texto.startsWith("Listo:")) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
 
                 BotonPrincipal(

@@ -32,7 +32,7 @@ class InduztekDbHelper(
 
     companion object {
         private const val NOMBRE_BD = "induztek.db"
-        private const val VERSION_BD = 18
+        private const val VERSION_BD = 21
 
         private const val TABLA_ROL = "rol"
         private const val TABLA_EMPRESA = "empresa_cliente"
@@ -169,7 +169,7 @@ class InduztekDbHelper(
         db.execSQL("CREATE TABLE $TABLA_INSTALACION ($INS_ID INTEGER PRIMARY KEY AUTOINCREMENT, $INS_CLIENTE_ID INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), $INS_NOMBRE TEXT NOT NULL)")
         db.execSQL("CREATE TABLE $TABLA_TIPO_EQUIPO ($TEQ_ID INTEGER PRIMARY KEY AUTOINCREMENT, $TEQ_NOMBRE TEXT NOT NULL UNIQUE, $TEQ_CLASIFICACION TEXT NOT NULL)")
         db.execSQL("CREATE TABLE $TABLA_EQUIPO ($EQP_ID INTEGER PRIMARY KEY AUTOINCREMENT, $EQP_INSTALACION INTEGER NOT NULL REFERENCES $TABLA_INSTALACION($INS_ID), $EQP_TAG TEXT NOT NULL, $EQP_TIPO_ID INTEGER NOT NULL REFERENCES $TABLA_TIPO_EQUIPO($TEQ_ID), $EQP_MARCA TEXT NOT NULL, $EQP_MODELO TEXT NOT NULL, $EQP_SERIE TEXT NOT NULL, $EQP_POTENCIA REAL, $EQP_TENSIONES TEXT, $EQP_ANO TEXT NOT NULL DEFAULT '', $EQP_TAP TEXT NOT NULL DEFAULT '', $EQP_GRUPO TEXT NOT NULL DEFAULT '', $EQP_MAX_CONTACTO REAL, UNIQUE($EQP_INSTALACION,$EQP_TAG))")
-        db.execSQL("CREATE TABLE $TABLA_PROTOCOLO ($PRT_ID INTEGER PRIMARY KEY AUTOINCREMENT, $PRT_NUMERO TEXT NOT NULL UNIQUE, $PRT_UUID TEXT NOT NULL, $PRT_VISITA INTEGER NOT NULL, $PRT_EQUIPO_ID INTEGER NOT NULL REFERENCES $TABLA_EQUIPO($EQP_ID), $PRT_USUARIO_REGISTRA INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), $PRT_FECHA TEXT NOT NULL, $PRT_TEMP REAL NOT NULL, $PRT_HUMEDAD REAL NOT NULL, $PRT_OBSERVACIONES TEXT, $PRT_ESTADO TEXT NOT NULL DEFAULT 'BORRADOR', $PRT_RESULTADO_GLOBAL TEXT NOT NULL DEFAULT 'APROBADO', $PRT_SYNC INTEGER NOT NULL DEFAULT 0, lectura_1min REAL, lectura_10min REAL, id_usuario_formaliza INTEGER, fecha_formalizacion TEXT, motivo_observacion TEXT)")
+        db.execSQL("CREATE TABLE $TABLA_PROTOCOLO ($PRT_ID INTEGER PRIMARY KEY AUTOINCREMENT, $PRT_NUMERO TEXT NOT NULL UNIQUE, $PRT_UUID TEXT NOT NULL, $PRT_VISITA INTEGER NOT NULL, $PRT_EQUIPO_ID INTEGER NOT NULL REFERENCES $TABLA_EQUIPO($EQP_ID), $PRT_USUARIO_REGISTRA INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), $PRT_FECHA TEXT NOT NULL, $PRT_TEMP REAL NOT NULL, $PRT_HUMEDAD REAL NOT NULL, $PRT_OBSERVACIONES TEXT, $PRT_ESTADO TEXT NOT NULL DEFAULT 'BORRADOR', $PRT_RESULTADO_GLOBAL TEXT NOT NULL DEFAULT 'APROBADO', $PRT_SYNC INTEGER NOT NULL DEFAULT 0, lectura_1min REAL, lectura_10min REAL, id_usuario_formaliza INTEGER, fecha_formalizacion TEXT, motivo_observacion TEXT, evidencia_equipo BLOB)")
         crearTablasProtocoloExtendido(db)
 
         db.execSQL("INSERT INTO $TABLA_ROL ($ROL_ID, $ROL_CODIGO, $ROL_NOMBRE) VALUES (1, 'TECNICO', 'Técnico de Terreno'), (2, 'INGENIERO', 'Ingeniero de Pruebas'), (3, 'JEFE_TECNICO', 'Jefe Técnico'), (4, 'CLIENTE', 'Usuario Cliente')")
@@ -231,6 +231,7 @@ class InduztekDbHelper(
         asegurarColumna(db, TABLA_PROTOCOLO, "id_usuario_formaliza", "INTEGER")
         asegurarColumna(db, TABLA_PROTOCOLO, "fecha_formalizacion", "TEXT")
         asegurarColumna(db, TABLA_PROTOCOLO, "motivo_observacion", "TEXT")
+        asegurarColumna(db, TABLA_PROTOCOLO, "evidencia_equipo", "BLOB")
         asegurarColumna(db, TABLA_PROTOCOLO, PRT_OBSERVACIONES, "TEXT")
         asegurarColumna(db, TABLA_USUARIO, USR_PREGUNTA, "TEXT")
         asegurarColumna(db, TABLA_USUARIO, USR_RESPUESTA, "TEXT")
@@ -538,6 +539,17 @@ class InduztekDbHelper(
     fun listarProtocolosPorEquipo(idEquipo: Long): List<ProtocoloTerreno> =
         consultarProtocolos("$SQL_SELECT_PROTOCOLOS WHERE p.$PRT_EQUIPO_ID = ? ORDER BY p.$PRT_FECHA DESC", arrayOf(idEquipo.toString()))
 
+    fun listarProtocolosTecnico(idTecnico: Long): List<ProtocoloTerreno> =
+        consultarProtocolos(
+            "$SQL_SELECT_PROTOCOLOS " +
+                    "INNER JOIN $TABLA_ASIGNACION_TECNICO a ON a.id_instalacion = e.$EQP_INSTALACION " +
+                    "WHERE a.id_tecnico = ? ORDER BY p.$PRT_FECHA DESC",
+            arrayOf(idTecnico.toString())
+        )
+
+    fun listarProtocolosTodos(): List<ProtocoloTerreno> =
+        consultarProtocolos("$SQL_SELECT_PROTOCOLOS ORDER BY p.$PRT_FECHA DESC", null)
+
     fun listarClientes(): List<ClienteCatalogoLocal> =
         readableDatabase.rawQuery(
             "SELECT DISTINCT ec.id_empresa_cliente, ec.razon_social FROM $TABLA_EMPRESA ec " +
@@ -565,12 +577,16 @@ class InduztekDbHelper(
             }
         }
 
+    fun listarEmpresasRegistradas(): List<ClienteCatalogoLocal> = listarEmpresasParaAsociacion()
+
     fun listarClientesSinEmpresa(): List<Usuario> =
         consultarUsuarios(
             "$SQL_SELECT_USUARIOS WHERE u.$USR_ROL_ID = ? AND u.$USR_ACTIVO = 1 " +
                 "AND u.$USR_CLIENTE_ID IS NULL ORDER BY u.$USR_NOMBRE",
             arrayOf(Rol.ID_CLIENTE.toString())
         )
+
+    fun listarUsuariosClienteSinEmpresa(): List<Usuario> = listarClientesSinEmpresa()
 
     fun asociarClienteAEmpresa(idCliente: Long, idEmpresa: Long): Boolean {
         val valores = ContentValues().apply { put(USR_CLIENTE_ID, idEmpresa) }
@@ -584,6 +600,30 @@ class InduztekDbHelper(
         )
 
         return writableDatabase.update(TABLA_USUARIO, valores, clausula, argumentos) == 1
+    }
+
+    fun asociarUsuarioClienteAEmpresa(
+        idUsuarioCliente: Long,
+        idEmpresa: Long,
+        idResponsable: Long
+    ): Boolean {
+        val db = writableDatabase
+        val rolesValidos = db.rawQuery(
+            "SELECT " +
+                "(SELECT $USR_ROL_ID FROM $TABLA_USUARIO WHERE $USR_ID = ? AND $USR_ACTIVO = 1), " +
+                "(SELECT $USR_ROL_ID FROM $TABLA_USUARIO WHERE $USR_ID = ? AND $USR_ACTIVO = 1), " +
+                "(SELECT 1 FROM $TABLA_EMPRESA WHERE id_empresa_cliente = ?)",
+            arrayOf(idResponsable.toString(), idUsuarioCliente.toString(), idEmpresa.toString())
+        ).use { cursor ->
+            cursor.moveToFirst() &&
+                !cursor.isNull(0) &&
+                cursor.getLong(0) in setOf(Rol.ID_INGENIERO, Rol.ID_JEFE_TECNICO) &&
+                !cursor.isNull(1) &&
+                cursor.getLong(1) == Rol.ID_CLIENTE &&
+                !cursor.isNull(2)
+        }
+        if (!rolesValidos) return false
+        return asociarClienteAEmpresa(idUsuarioCliente, idEmpresa)
     }
 
     fun listarClientesTecnico(idTecnico: Long): List<ClienteCatalogoLocal> =
@@ -712,7 +752,8 @@ class InduztekDbHelper(
             ).use { cursor ->
                 cursor.moveToFirst() &&
                         !cursor.isNull(0) && cursor.getLong(0) == Rol.ID_TECNICO &&
-                        !cursor.isNull(1) && cursor.getLong(1) == Rol.ID_JEFE_TECNICO
+                        !cursor.isNull(1) &&
+                        cursor.getLong(1) in setOf(Rol.ID_JEFE_TECNICO, Rol.ID_INGENIERO)
             }
             if (!rolesValidos) return false
 
@@ -987,6 +1028,7 @@ class InduztekDbHelper(
                 put(PRT_ESTADO, registro.estado)
                 put(PRT_RESULTADO_GLOBAL, registro.resultadoGlobal)
                 put(PRT_SYNC, 0)
+                registro.evidenciaEquipo?.let { put("evidencia_equipo", it) }
                 put("tipo_visita", registro.tipoVisita)
                 put("descripcion_mantenimiento", registro.descripcionMantenimiento)
                 put("receptor_nombre", registro.receptorNombre)
@@ -1227,6 +1269,7 @@ class InduztekDbHelper(
                     motivoObservacion = cursor.getString(cursor.getColumnIndexOrThrow("motivo_observacion")),
                     lectura1Min = if (cursor.isNull(cursor.getColumnIndexOrThrow("lectura_1min"))) 0.0 else cursor.getDouble(cursor.getColumnIndexOrThrow("lectura_1min")),
                     lectura10Min = if (cursor.isNull(cursor.getColumnIndexOrThrow("lectura_10min"))) 0.0 else cursor.getDouble(cursor.getColumnIndexOrThrow("lectura_10min")),
+                    evidenciaEquipo = cursor.getBlob(cursor.getColumnIndexOrThrow("evidencia_equipo")),
                     mediciones = listarMediciones(cursor.getLong(cursor.getColumnIndexOrThrow(PRT_ID))),
                     historialEstados = listarHistorialEstados(cursor.getLong(cursor.getColumnIndexOrThrow(PRT_ID)))
                 ))
