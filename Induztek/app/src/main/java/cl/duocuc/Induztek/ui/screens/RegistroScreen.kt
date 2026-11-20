@@ -60,6 +60,7 @@ fun RegistroScreen(
     var correo by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
     var clave by remember { mutableStateOf("") }
+    var repetirClave by remember { mutableStateOf("") }
     var respuestaSeguridad by remember { mutableStateOf("") }
     var preguntaSeleccionada by remember { mutableStateOf(PreguntasSeguridad.disponibles.first()) }
     var expandidoPregunta by remember { mutableStateOf(false) }
@@ -179,6 +180,17 @@ fun RegistroScreen(
                 transformacion = PasswordVisualTransformation(),
                 onValorCambia = { clave = it; erroresCampos = erroresCampos - "clave" }
             )
+            CampoRegistro(
+                valor = repetirClave,
+                etiqueta = "Repetir contraseña *",
+                error = erroresCampos["repetirClave"],
+                teclado = KeyboardType.Password,
+                transformacion = PasswordVisualTransformation(),
+                onValorCambia = {
+                    repetirClave = it
+                    erroresCampos = erroresCampos - "repetirClave"
+                }
+            )
             Text(
                 text = when {
                     seguridad == 4 -> "Seguridad de contraseña: Fuerte"
@@ -275,6 +287,12 @@ fun RegistroScreen(
                                     "clave",
                                     "La contraseña debe tener mínimo ${ValidarContrasena.LONGITUD_MINIMA} caracteres, una mayúscula, un número y un carácter especial."
                                 )
+                        }
+                        when {
+                            repetirClave.isBlank() ->
+                                put("repetirClave", "Repite la contraseña para confirmarla.")
+                            repetirClave != clave ->
+                                put("repetirClave", "Las contraseñas no coinciden.")
                         }
                         if (respuestaSeguridad.isBlank()) {
                             put("respuesta", "Ingresa una respuesta para la pregunta de seguridad.")

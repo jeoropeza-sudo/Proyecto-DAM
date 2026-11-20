@@ -284,7 +284,8 @@ fun AppNavegacion(
                     onCerrarSesion = {
                         usuariosViewModel.cerrarSesion()
                         navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }
-                    }
+                    },
+                    onVolverInicio = { navController.navigate(Ruta.Inicio.ruta) }
                 )
             }
 
@@ -321,6 +322,13 @@ fun AppNavegacion(
                     idProtocolo = idProtocolo,
                     viewModel = protocoloViewModel,
                     usuarioActivo = usuarioActivo,
+                    onVolver = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(Ruta.Inicio.ruta) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                     onVolverInicio = {
                         navController.navigate(Ruta.Inicio.ruta) {
                             popUpTo(Ruta.Inicio.ruta) { inclusive = true }

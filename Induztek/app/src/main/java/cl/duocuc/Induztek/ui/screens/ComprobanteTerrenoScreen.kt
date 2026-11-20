@@ -63,6 +63,7 @@ fun ComprobanteTerrenoScreen(
     idProtocolo: Long,
     viewModel: ProtocoloViewModel,
     usuarioActivo: Usuario?,
+    onVolver: () -> Unit,
     onVolverInicio: () -> Unit
 ) {
     var protocolo by remember(idProtocolo) { mutableStateOf<ProtocoloTerreno?>(null) }
@@ -357,6 +358,9 @@ fun ComprobanteTerrenoScreen(
 
             Spacer(Modifier.height(10.dp))
 
+            Button(onClick = onVolver, modifier = Modifier.fillMaxWidth()) {
+                Text("VOLVER")
+            }
             Button(onClick = onVolverInicio, modifier = Modifier.fillMaxWidth()) {
                 Text("VOLVER AL INICIO")
             }
