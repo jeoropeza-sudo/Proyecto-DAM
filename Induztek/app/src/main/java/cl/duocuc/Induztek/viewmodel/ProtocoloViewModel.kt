@@ -8,6 +8,9 @@ import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.ClienteCatalogoLocal
 import cl.duocuc.Induztek.model.CuentaEmpresaLocal
 import cl.duocuc.Induztek.model.InstalacionCatalogoLocal
+import cl.duocuc.Induztek.model.EquipoCatalogoLocal
+import cl.duocuc.Induztek.model.TipoEquipoCatalogoLocal
+import cl.duocuc.Induztek.model.CrearEquipoResultado
 import cl.duocuc.Induztek.model.MedicionAislacionUiState
 import cl.duocuc.Induztek.model.MedicionContactosUiState
 import cl.duocuc.Induztek.model.MedicionReleUiState
@@ -156,6 +159,61 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         val responsable = usuario ?: return false
         if (!puedeAdministrarAsignaciones(responsable)) return false
         return db.crearInstalacionAdministrativa(responsable.idUsuario, idCliente, nombre)
+    }
+
+    fun tiposEquipoParaGestion(usuario: Usuario?): List<TipoEquipoCatalogoLocal> =
+        if (puedeAdministrarAsignaciones(usuario)) db.listarTiposEquipo() else emptyList()
+
+    fun equiposDeInstalacionParaGestion(
+        idInstalacion: Long,
+        usuario: Usuario?
+    ): List<EquipoCatalogoLocal> =
+        if (puedeAdministrarAsignaciones(usuario)) {
+            db.listarEquiposPorInstalacion(idInstalacion)
+        } else {
+            emptyList()
+        }
+
+    fun crearEquipoParaInstalacion(
+        idInstalacion: Long,
+        idTipoEquipo: Long,
+        tag: String,
+        marca: String,
+        modelo: String,
+        numeroSerie: String,
+        potenciaKva: Double?,
+        tensiones: String,
+        anoFabricacion: String,
+        posicionTap: String,
+        grupoConexion: String,
+        resistenciaContactoMaxUohm: Double?,
+        usuario: Usuario?
+    ): CrearEquipoResultado {
+        val responsable = usuario ?: return CrearEquipoResultado(
+            campoError = "general",
+            mensajeError = "Inicia sesión con un perfil autorizado para registrar equipos."
+        )
+        if (!puedeAdministrarAsignaciones(responsable)) {
+            return CrearEquipoResultado(
+                campoError = "general",
+                mensajeError = "Solo Ingeniería o Jefatura Técnica pueden registrar equipos."
+            )
+        }
+        return db.crearEquipoAdministrativo(
+            actorId = responsable.idUsuario,
+            idInstalacion = idInstalacion,
+            idTipoEquipo = idTipoEquipo,
+            tag = tag,
+            marca = marca,
+            modelo = modelo,
+            numeroSerie = numeroSerie,
+            potenciaKva = potenciaKva,
+            tensiones = tensiones,
+            anoFabricacion = anoFabricacion,
+            posicionTap = posicionTap,
+            grupoConexion = grupoConexion,
+            resistenciaContactoMaxUohm = resistenciaContactoMaxUohm
+        )
     }
 
     fun instalacionesParaAsignacion(usuario: Usuario?) =

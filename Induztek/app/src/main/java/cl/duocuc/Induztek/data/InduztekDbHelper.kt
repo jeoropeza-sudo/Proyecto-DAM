@@ -12,6 +12,8 @@ import cl.duocuc.Induztek.model.RegistroProtocolo
 import cl.duocuc.Induztek.model.ClienteCatalogoLocal
 import cl.duocuc.Induztek.model.CuentaEmpresaLocal
 import cl.duocuc.Induztek.model.EquipoCatalogoLocal
+import cl.duocuc.Induztek.model.TipoEquipoCatalogoLocal
+import cl.duocuc.Induztek.model.CrearEquipoResultado
 import cl.duocuc.Induztek.model.HistorialEstadoProtocolo
 import cl.duocuc.Induztek.model.InstalacionCatalogoLocal
 import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
@@ -790,6 +792,187 @@ class InduztekDbHelper(
             put(INS_NOMBRE, nombre.trim())
         }
         return db.insert(TABLA_INSTALACION, null, valores) != -1L
+    }
+
+    fun listarTiposEquipo(): List<TipoEquipoCatalogoLocal> =
+        readableDatabase.rawQuery(
+            "SELECT $TEQ_ID, $TEQ_NOMBRE, $TEQ_CLASIFICACION " +
+                "FROM $TABLA_TIPO_EQUIPO ORDER BY $TEQ_NOMBRE",
+            null
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        TipoEquipoCatalogoLocal(
+                            idTipoEquipo = cursor.getLong(0),
+                            nombre = cursor.getString(1),
+                            clasificacion = cursor.getString(2)
+                        )
+                    )
+                }
+            }
+        }
+
+    fun crearEquipoAdministrativo(
+        actorId: Long,
+        idInstalacion: Long,
+        idTipoEquipo: Long,
+        tag: String,
+        marca: String,
+        modelo: String,
+        numeroSerie: String,
+        potenciaKva: Double?,
+        tensiones: String,
+        anoFabricacion: String,
+        posicionTap: String,
+        grupoConexion: String,
+        resistenciaContactoMaxUohm: Double?
+    ): CrearEquipoResultado {
+        if (!esAdministradorActivo(actorId)) {
+            return CrearEquipoResultado(
+                campoError = "general",
+                mensajeError = "Solo Ingeniería o Jefatura Técnica pueden registrar equipos."
+            )
+        }
+        if (tag.isBlank() || marca.isBlank() || modelo.isBlank() || numeroSerie.isBlank()) {
+            return CrearEquipoResultado(
+                campoError = "general",
+                mensajeError = "Completa el TAG, la marca, el modelo y el número de serie."
+            )
+        }
+        val db = writableDatabase
+        val instalacionValida = db.rawQuery(
+            "SELECT 1 FROM $TABLA_INSTALACION WHERE $INS_ID = ?",
+            arrayOf(idInstalacion.toString())
+        ).use { it.moveToFirst() }
+        if (!instalacionValida) {
+            return CrearEquipoResultado(
+                campoError = "instalacion",
+                mensajeError = "La instalación seleccionada ya no existe."
+            )
+        }
+        val tipoValido = db.rawQuery(
+            "SELECT 1 FROM $TABLA_TIPO_EQUIPO WHERE $TEQ_ID = ?",
+            arrayOf(idTipoEquipo.toString())
+        ).use { it.moveToFirst() }
+        if (!tipoValido) {
+            return CrearEquipoResultado(
+                campoError = "tipo",
+                mensajeError = "Selecciona un tipo de equipo válido."
+            )
+        }
+        val tipoNombre = db.rawQuery(
+            "SELECT $TEQ_NOMBRE FROM $TABLA_TIPO_EQUIPO WHERE $TEQ_ID = ?",
+            arrayOf(idTipoEquipo.toString())
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else ""
+        }
+        if (anoFabricacion.isNotBlank()) {
+            val ano = anoFabricacion.trim().toIntOrNull()
+            val anoActual = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            if (ano == null || ano !in 1900..anoActual) {
+                return CrearEquipoResultado(
+                    campoError = "ano",
+                    mensajeError = "Ingresa un año válido entre 1900 y el año actual."
+                )
+            }
+        }
+        when {
+            tipoNombre.equals("Transformador", ignoreCase = true) -> {
+                if (potenciaKva == null || potenciaKva <= 0) {
+                    return CrearEquipoResultado(campoError = "potencia", mensajeError = "Ingresa una potencia mayor que cero.")
+                }
+                if (!Regex("""\d+(?:[.,]\d+)?\s*/\s*\d+(?:[.,]\d+)?""")
+                        .matches(tensiones.trim())
+                ) {
+                    return CrearEquipoResultado(
+                        campoError = "tensiones",
+                        mensajeError = "Ingresa las tensiones AT/BT separadas por «/»."
+                    )
+                }
+                if (posicionTap.trim().toIntOrNull()?.let { it > 0 } != true) {
+                    return CrearEquipoResultado(
+                        campoError = "tap",
+                        mensajeError = "Ingresa una posición TAP entera mayor que cero."
+                    )
+                }
+                if (grupoConexion.isBlank()) {
+                    return CrearEquipoResultado(
+                        campoError = "grupo",
+                        mensajeError = "Ingresa el grupo de conexión."
+                    )
+                }
+            }
+            tipoNombre.equals("Celda MT", ignoreCase = true) ||
+                tipoNombre.equals("Interruptor", ignoreCase = true) -> {
+                if (!Regex("""\d+(?:[.,]\d+)?""").containsMatchIn(tensiones)) {
+                    return CrearEquipoResultado(
+                        campoError = "tensiones",
+                        mensajeError = "Ingresa la tensión nominal del equipo."
+                    )
+                }
+                if (resistenciaContactoMaxUohm == null || resistenciaContactoMaxUohm <= 0) {
+                    return CrearEquipoResultado(
+                        campoError = "contacto",
+                        mensajeError = "Ingresa una resistencia máxima mayor que cero."
+                    )
+                }
+            }
+            tipoNombre.equals("Cable de poder", ignoreCase = true) -> {
+                if (tensiones.isBlank() ||
+                    !Regex("""\d+(?:[.,]\d+)?""").containsMatchIn(tensiones)
+                ) {
+                    return CrearEquipoResultado(
+                        campoError = "tensiones",
+                        mensajeError = "Ingresa la tensión y sección del cable."
+                    )
+                }
+            }
+        }
+        val tagExistente = db.rawQuery(
+            "SELECT 1 FROM $TABLA_EQUIPO WHERE $EQP_INSTALACION = ? " +
+                "AND LOWER($EQP_TAG) = LOWER(?) LIMIT 1",
+            arrayOf(idInstalacion.toString(), tag.trim())
+        ).use { it.moveToFirst() }
+        if (tagExistente) {
+            return CrearEquipoResultado(
+                campoError = "tag",
+                mensajeError = "Ya existe un equipo con ese TAG en esta instalación."
+            )
+        }
+
+        return try {
+            val valores = ContentValues().apply {
+                put(EQP_INSTALACION, idInstalacion)
+                put(EQP_TAG, tag.trim())
+                put(EQP_TIPO_ID, idTipoEquipo)
+                put(EQP_MARCA, marca.trim())
+                put(EQP_MODELO, modelo.trim())
+                put(EQP_SERIE, numeroSerie.trim())
+                if (potenciaKva == null) putNull(EQP_POTENCIA) else put(EQP_POTENCIA, potenciaKva)
+                put(EQP_TENSIONES, tensiones.trim())
+                put(EQP_ANO, anoFabricacion.trim())
+                put(EQP_TAP, posicionTap.trim())
+                put(EQP_GRUPO, grupoConexion.trim())
+                if (resistenciaContactoMaxUohm == null) {
+                    putNull(EQP_MAX_CONTACTO)
+                } else {
+                    put(EQP_MAX_CONTACTO, resistenciaContactoMaxUohm)
+                }
+            }
+            val idEquipo = db.insertOrThrow(TABLA_EQUIPO, null, valores)
+            CrearEquipoResultado(idEquipo = idEquipo)
+        } catch (_: android.database.sqlite.SQLiteConstraintException) {
+            CrearEquipoResultado(
+                campoError = "tag",
+                mensajeError = "No se pudo registrar el equipo. Verifica que el TAG no esté duplicado."
+            )
+        } catch (_: SQLiteException) {
+            CrearEquipoResultado(
+                campoError = "general",
+                mensajeError = "Ocurrió un problema al guardar el equipo. Inténtalo nuevamente."
+            )
+        }
     }
 
     private fun esAdministradorActivo(idUsuario: Long): Boolean =

@@ -334,7 +334,13 @@ fun AppNavegacion(
                 GestionInstalacionesScreen(
                     viewModel = protocoloViewModel,
                     usuarioActivo = usuarioActivo,
-                    onVolver = { navController.popBackStack() }
+                    onVolver = { navController.popBackStack() },
+                    onIrInicio = {
+                        navController.navigate(Ruta.Inicio.ruta) {
+                            popUpTo(Ruta.Inicio.ruta) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 

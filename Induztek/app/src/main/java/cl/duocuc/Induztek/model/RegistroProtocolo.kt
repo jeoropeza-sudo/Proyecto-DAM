@@ -52,6 +52,20 @@ data class EquipoCatalogoLocal(
     val resistenciaContactoMaxUohm: Double? = null
 )
 
+data class TipoEquipoCatalogoLocal(
+    val idTipoEquipo: Long,
+    val nombre: String,
+    val clasificacion: String
+)
+
+data class CrearEquipoResultado(
+    val idEquipo: Long? = null,
+    val campoError: String? = null,
+    val mensajeError: String? = null
+) {
+    val exitosa: Boolean get() = idEquipo != null
+}
+
 data class ClienteCatalogoLocal(val idEmpresa: Long, val razonSocial: String)
 
 data class InstalacionCatalogoLocal(val idInstalacion: Long, val nombre: String)
