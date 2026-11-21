@@ -36,7 +36,7 @@ object EstilosBoton {
 
     @Composable
     fun bordeSecundario(): BorderStroke =
-        BorderStroke(Dimens.bordeBoton, MaterialTheme.colorScheme.primary)
+        BorderStroke(Dimens.bordeBoton, MaterialTheme.colorScheme.tertiary)
 
     @Composable
     fun elevacion(): ButtonElevation = ButtonDefaults.buttonElevation(

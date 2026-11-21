@@ -4,16 +4,19 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteOpenHelper
 import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.model.MedicionProtocolo
 import cl.duocuc.Induztek.model.RegistroProtocolo
 import cl.duocuc.Induztek.model.ClienteCatalogoLocal
+import cl.duocuc.Induztek.model.CuentaEmpresaLocal
 import cl.duocuc.Induztek.model.EquipoCatalogoLocal
 import cl.duocuc.Induztek.model.HistorialEstadoProtocolo
 import cl.duocuc.Induztek.model.InstalacionCatalogoLocal
 import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
 import cl.duocuc.Induztek.model.InstrumentoItem
+import cl.duocuc.Induztek.model.CrearCuentaResultado
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.model.ValidarContrasena
@@ -32,7 +35,7 @@ class InduztekDbHelper(
 
     companion object {
         private const val NOMBRE_BD = "induztek.db"
-        private const val VERSION_BD = 21
+        private const val VERSION_BD = 22
 
         private const val TABLA_ROL = "rol"
         private const val TABLA_EMPRESA = "empresa_cliente"
@@ -53,6 +56,11 @@ class InduztekDbHelper(
         private const val USR_PREGUNTA = "pregunta_seguridad"
         private const val USR_RESPUESTA = "respuesta_seguridad"
         private const val USR_FOTO = "foto_blob"
+        private const val USR_DEBE_CAMBIAR_CLAVE = "debe_cambiar_contrasena"
+        private const val EMP_DIRECCION = "direccion"
+        private const val EMP_CONTACTO_NOMBRE = "contacto_nombre"
+        private const val EMP_CONTACTO_CORREO = "contacto_correo"
+        private const val EMP_CONTACTO_TELEFONO = "contacto_telefono"
 
         private const val TABLA_INSTALACION = "instalacion"
         private const val INS_ID = "id_instalacion"
@@ -164,8 +172,8 @@ class InduztekDbHelper(
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE $TABLA_ROL ($ROL_ID INTEGER PRIMARY KEY AUTOINCREMENT, $ROL_CODIGO TEXT NOT NULL UNIQUE, $ROL_NOMBRE TEXT NOT NULL)")
-        db.execSQL("CREATE TABLE $TABLA_EMPRESA (id_empresa_cliente INTEGER PRIMARY KEY, razon_social TEXT NOT NULL UNIQUE, rut TEXT NOT NULL UNIQUE, giro TEXT NOT NULL)")
-        db.execSQL("CREATE TABLE $TABLA_USUARIO ($USR_ID INTEGER PRIMARY KEY AUTOINCREMENT, $USR_ROL_ID INTEGER NOT NULL REFERENCES $TABLA_ROL($ROL_ID), $USR_RUT TEXT NOT NULL UNIQUE, $USR_NOMBRE TEXT NOT NULL, $USR_CORREO TEXT NOT NULL UNIQUE, $USR_TELEFONO TEXT, $USR_PASS TEXT NOT NULL DEFAULT '$CLAVE_DEFAULT_HASH', $USR_ACTIVO INTEGER NOT NULL DEFAULT 1, $USR_CLIENTE_ID INTEGER, $USR_PREGUNTA TEXT, $USR_RESPUESTA TEXT, $USR_FOTO BLOB)")
+        db.execSQL("CREATE TABLE $TABLA_EMPRESA (id_empresa_cliente INTEGER PRIMARY KEY, razon_social TEXT NOT NULL UNIQUE, rut TEXT NOT NULL UNIQUE, giro TEXT NOT NULL, $EMP_DIRECCION TEXT NOT NULL DEFAULT '', $EMP_CONTACTO_NOMBRE TEXT NOT NULL DEFAULT '', $EMP_CONTACTO_CORREO TEXT NOT NULL DEFAULT '', $EMP_CONTACTO_TELEFONO TEXT NOT NULL DEFAULT '')")
+        db.execSQL("CREATE TABLE $TABLA_USUARIO ($USR_ID INTEGER PRIMARY KEY AUTOINCREMENT, $USR_ROL_ID INTEGER NOT NULL REFERENCES $TABLA_ROL($ROL_ID), $USR_RUT TEXT NOT NULL UNIQUE, $USR_NOMBRE TEXT NOT NULL, $USR_CORREO TEXT NOT NULL UNIQUE, $USR_TELEFONO TEXT, $USR_PASS TEXT NOT NULL DEFAULT '$CLAVE_DEFAULT_HASH', $USR_ACTIVO INTEGER NOT NULL DEFAULT 1, $USR_CLIENTE_ID INTEGER, $USR_PREGUNTA TEXT, $USR_RESPUESTA TEXT, $USR_FOTO BLOB, $USR_DEBE_CAMBIAR_CLAVE INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE TABLE $TABLA_INSTALACION ($INS_ID INTEGER PRIMARY KEY AUTOINCREMENT, $INS_CLIENTE_ID INTEGER NOT NULL REFERENCES $TABLA_USUARIO($USR_ID), $INS_NOMBRE TEXT NOT NULL)")
         db.execSQL("CREATE TABLE $TABLA_TIPO_EQUIPO ($TEQ_ID INTEGER PRIMARY KEY AUTOINCREMENT, $TEQ_NOMBRE TEXT NOT NULL UNIQUE, $TEQ_CLASIFICACION TEXT NOT NULL)")
         db.execSQL("CREATE TABLE $TABLA_EQUIPO ($EQP_ID INTEGER PRIMARY KEY AUTOINCREMENT, $EQP_INSTALACION INTEGER NOT NULL REFERENCES $TABLA_INSTALACION($INS_ID), $EQP_TAG TEXT NOT NULL, $EQP_TIPO_ID INTEGER NOT NULL REFERENCES $TABLA_TIPO_EQUIPO($TEQ_ID), $EQP_MARCA TEXT NOT NULL, $EQP_MODELO TEXT NOT NULL, $EQP_SERIE TEXT NOT NULL, $EQP_POTENCIA REAL, $EQP_TENSIONES TEXT, $EQP_ANO TEXT NOT NULL DEFAULT '', $EQP_TAP TEXT NOT NULL DEFAULT '', $EQP_GRUPO TEXT NOT NULL DEFAULT '', $EQP_MAX_CONTACTO REAL, UNIQUE($EQP_INSTALACION,$EQP_TAG))")
@@ -236,6 +244,7 @@ class InduztekDbHelper(
         asegurarColumna(db, TABLA_USUARIO, USR_PREGUNTA, "TEXT")
         asegurarColumna(db, TABLA_USUARIO, USR_RESPUESTA, "TEXT")
         asegurarColumna(db, TABLA_USUARIO, USR_FOTO, "BLOB")
+        asegurarColumna(db, TABLA_USUARIO, USR_DEBE_CAMBIAR_CLAVE, "INTEGER NOT NULL DEFAULT 0")
         db.execSQL(
             "UPDATE $TABLA_PROTOCOLO SET $PRT_OBSERVACIONES = descripcion_mantenimiento " +
                     "WHERE $PRT_OBSERVACIONES IS NULL AND descripcion_mantenimiento IS NOT NULL"
@@ -361,6 +370,10 @@ class InduztekDbHelper(
         asegurarColumna(db, TABLA_EQUIPO, EQP_GRUPO, "TEXT NOT NULL DEFAULT ''")
         asegurarColumna(db, TABLA_EQUIPO, EQP_MAX_CONTACTO, "REAL")
         db.execSQL("CREATE TABLE IF NOT EXISTS $TABLA_EMPRESA (id_empresa_cliente INTEGER PRIMARY KEY, razon_social TEXT NOT NULL UNIQUE, rut TEXT NOT NULL UNIQUE, giro TEXT NOT NULL)")
+        asegurarColumna(db, TABLA_EMPRESA, EMP_DIRECCION, "TEXT NOT NULL DEFAULT ''")
+        asegurarColumna(db, TABLA_EMPRESA, EMP_CONTACTO_NOMBRE, "TEXT NOT NULL DEFAULT ''")
+        asegurarColumna(db, TABLA_EMPRESA, EMP_CONTACTO_CORREO, "TEXT NOT NULL DEFAULT ''")
+        asegurarColumna(db, TABLA_EMPRESA, EMP_CONTACTO_TELEFONO, "TEXT NOT NULL DEFAULT ''")
         insertarEmpresasIniciales(db)
         listOf(8L to 1L, 9L to 2L, 10L to 3L, 11L to 4L, 12L to 5L, 13L to 6L).forEach { (idUsuario, idEmpresa) ->
             db.execSQL(
@@ -479,6 +492,45 @@ class InduztekDbHelper(
         return existe
     }
 
+    fun existeRutUsuario(rut: String): Boolean {
+        val rutNormalizado = normalizarRut(rut)
+        if (rutNormalizado.isBlank()) return false
+        return readableDatabase.rawQuery(
+            "SELECT 1 FROM $TABLA_USUARIO " +
+                "WHERE REPLACE(REPLACE(UPPER(TRIM($USR_RUT)), '.', ''), '-', '') = ? LIMIT 1",
+            arrayOf(rutNormalizado)
+        ).use { it.moveToFirst() }
+    }
+
+    fun existeCorreoUsuario(correo: String): Boolean =
+        existeValorIgnorandoMayusculas(
+            readableDatabase,
+            TABLA_USUARIO,
+            USR_CORREO,
+            correo.trim()
+        )
+
+    fun existeRutEmpresa(rut: String): Boolean {
+        val rutNormalizado = normalizarRut(rut)
+        if (rutNormalizado.isBlank()) return false
+        return readableDatabase.rawQuery(
+            "SELECT 1 FROM $TABLA_EMPRESA " +
+                "WHERE REPLACE(REPLACE(UPPER(TRIM(rut)), '.', ''), '-', '') = ? LIMIT 1",
+            arrayOf(rutNormalizado)
+        ).use { it.moveToFirst() }
+    }
+
+    fun existeRazonSocialEmpresa(razonSocial: String): Boolean =
+        existeValorIgnorandoMayusculas(
+            readableDatabase,
+            TABLA_EMPRESA,
+            "razon_social",
+            razonSocial.trim()
+        )
+
+    private fun normalizarRut(rut: String): String =
+        rut.replace(".", "").replace("-", "").trim().uppercase()
+
     fun recuperarClaveConRespuesta(
         correo: String,
         pregunta: String,
@@ -506,9 +558,267 @@ class InduztekDbHelper(
         val claveValida = cursor.moveToFirst()
         cursor.close()
         if (!claveValida) return false
-        val valores = ContentValues().apply { put(USR_PASS, hashNuevo) }
+        val valores = ContentValues().apply {
+            put(USR_PASS, hashNuevo)
+            put(USR_DEBE_CAMBIAR_CLAVE, 0)
+        }
         return db.update(TABLA_USUARIO, valores, "$USR_ID = ?", arrayOf(idUsuario.toString())) > 0
     }
+
+    fun crearCuentaAdministrativa(
+        actorId: Long,
+        rut: String,
+        nombre: String,
+        correo: String,
+        telefono: String,
+        rolCodigo: String,
+        contrasenaTemporal: String,
+        rutEmpresa: String?,
+        razonSocial: String?,
+        giro: String?,
+        direccion: String?,
+        contactoNombre: String?,
+        contactoCorreo: String?,
+        contactoTelefono: String?,
+        nombreInstalacion: String? = null
+    ): CrearCuentaResultado {
+        val db = writableDatabase
+        val autorizado = db.rawQuery(
+            "SELECT 1 FROM $TABLA_USUARIO u INNER JOIN $TABLA_ROL r " +
+                "ON u.$USR_ROL_ID = r.$ROL_ID WHERE u.$USR_ID = ? AND u.$USR_ACTIVO = 1 " +
+                "AND r.$ROL_CODIGO IN (?, ?)",
+            arrayOf(actorId.toString(), Rol.CODIGO_INGENIERO, Rol.CODIGO_JEFE_TECNICO)
+        ).use { it.moveToFirst() }
+        if (!autorizado) {
+            return CrearCuentaResultado(
+                campoError = "general",
+                mensajeError = "Solo Ingeniería o Jefatura Técnica pueden crear cuentas."
+            )
+        }
+
+        val rolId = when (rolCodigo) {
+            Rol.CODIGO_TECNICO -> Rol.ID_TECNICO
+            Rol.CODIGO_CLIENTE -> Rol.ID_CLIENTE
+            else -> return CrearCuentaResultado(
+                campoError = "rol",
+                mensajeError = "Solo se pueden crear cuentas de Técnico o Cliente."
+            )
+        }
+        if (!ValidarRut.validarRut(rut)) {
+            return CrearCuentaResultado(campoError = "rut", mensajeError = "Ingresa un RUT personal válido.")
+        }
+        if (nombre.isBlank()) {
+            return CrearCuentaResultado(campoError = "nombre", mensajeError = "Ingresa el nombre completo.")
+        }
+        if (correo.isBlank()) {
+            return CrearCuentaResultado(campoError = "correo", mensajeError = "Ingresa un correo electrónico.")
+        }
+        if (telefono.isNotBlank() && ValidarTelefonoChile.normalizar(telefono) == null) {
+            return CrearCuentaResultado(campoError = "telefono", mensajeError = "Ingresa un teléfono móvil chileno válido.")
+        }
+        if (!ValidarContrasena.esSegura(contrasenaTemporal)) {
+            return CrearCuentaResultado(campoError = "general", mensajeError = "No se pudo generar una contraseña temporal segura.")
+        }
+
+        if (existeRutUsuario(rut)) {
+            return CrearCuentaResultado(campoError = "rut", mensajeError = "Ya existe una cuenta con ese RUT.")
+        }
+        if (existeCorreoUsuario(correo)) {
+            return CrearCuentaResultado(campoError = "correo", mensajeError = "Ya existe una cuenta con ese correo.")
+        }
+
+        val esCliente = rolCodigo == Rol.CODIGO_CLIENTE
+        if (esCliente) {
+            if (nombreInstalacion.isNullOrBlank()) {
+                return CrearCuentaResultado(
+                    campoError = "instalacion",
+                    mensajeError = "Ingresa el nombre de la primera instalación."
+                )
+            }
+            if (!ValidarRut.validarRut(rutEmpresa.orEmpty())) {
+                return CrearCuentaResultado(campoError = "rutEmpresa", mensajeError = "Ingresa un RUT válido para la empresa.")
+            }
+            if (razonSocial.isNullOrBlank()) {
+                return CrearCuentaResultado(campoError = "razonSocial", mensajeError = "Ingresa la razón social.")
+            }
+            if (giro.isNullOrBlank()) {
+                return CrearCuentaResultado(campoError = "giro", mensajeError = "Ingresa el giro de la empresa.")
+            }
+            if (direccion.isNullOrBlank()) {
+                return CrearCuentaResultado(campoError = "direccion", mensajeError = "Ingresa la dirección de la empresa.")
+            }
+            if (contactoNombre.isNullOrBlank()) {
+                return CrearCuentaResultado(campoError = "contactoNombre", mensajeError = "Ingresa el nombre del contacto.")
+            }
+            if (contactoCorreo.isNullOrBlank()) {
+                return CrearCuentaResultado(campoError = "contactoCorreo", mensajeError = "Ingresa el correo del contacto.")
+            }
+            if (contactoTelefono.isNullOrBlank() ||
+                ValidarTelefonoChile.normalizar(contactoTelefono) == null
+            ) {
+                return CrearCuentaResultado(campoError = "contactoTelefono", mensajeError = "Ingresa un teléfono de contacto válido.")
+            }
+            if (existeRutEmpresa(rutEmpresa.orEmpty())) {
+                return CrearCuentaResultado(campoError = "rutEmpresa", mensajeError = "Ya existe una empresa con ese RUT.")
+            }
+            if (existeRazonSocialEmpresa(razonSocial.orEmpty())) {
+                return CrearCuentaResultado(campoError = "razonSocial", mensajeError = "Ya existe una empresa con esa razón social.")
+            }
+        }
+
+        var idUsuario = -1L
+        db.beginTransaction()
+        try {
+            val idEmpresa = if (esCliente) {
+                val valoresEmpresa = ContentValues().apply {
+                    put("razon_social", razonSocial!!.trim())
+                    put("rut", rutEmpresa!!.trim())
+                    put("giro", giro!!.trim())
+                    put(EMP_DIRECCION, direccion!!.trim())
+                    put(EMP_CONTACTO_NOMBRE, contactoNombre!!.trim())
+                    put(EMP_CONTACTO_CORREO, contactoCorreo!!.trim().lowercase())
+                    put(EMP_CONTACTO_TELEFONO, ValidarTelefonoChile.normalizar(contactoTelefono!!))
+                }
+                db.insertOrThrow(TABLA_EMPRESA, null, valoresEmpresa)
+            } else {
+                null
+            }
+            val valoresUsuario = ContentValues().apply {
+                put(USR_ROL_ID, rolId)
+                put(USR_RUT, rut.trim())
+                put(USR_NOMBRE, nombre.trim())
+                put(USR_CORREO, correo.trim().lowercase())
+                put(USR_TELEFONO, if (telefono.isBlank()) "" else ValidarTelefonoChile.normalizar(telefono))
+                put(USR_PASS, contrasenaTemporal.toSha256())
+                put(USR_ACTIVO, 1)
+                put(USR_CLIENTE_ID, idEmpresa)
+                put(USR_DEBE_CAMBIAR_CLAVE, 1)
+            }
+            idUsuario = db.insertOrThrow(TABLA_USUARIO, null, valoresUsuario)
+            if (esCliente) {
+                val valoresInstalacion = ContentValues().apply {
+                    put(INS_CLIENTE_ID, idUsuario)
+                    put(INS_NOMBRE, nombreInstalacion!!.trim())
+                }
+                db.insertOrThrow(TABLA_INSTALACION, null, valoresInstalacion)
+            }
+            db.setTransactionSuccessful()
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            return CrearCuentaResultado(
+                campoError = "general",
+                mensajeError = "No se pudo crear la cuenta, empresa o instalación porque algún dato ya está registrado."
+            )
+        } catch (e: SQLiteException) {
+            return CrearCuentaResultado(
+                campoError = "general",
+                mensajeError = "Ocurrió un problema al guardar la cuenta, empresa e instalación. No se guardaron cambios; inténtalo nuevamente."
+            )
+        } finally {
+            db.endTransaction()
+        }
+
+        return CrearCuentaResultado(
+            idUsuario = idUsuario,
+            contrasenaTemporal = contrasenaTemporal
+        )
+    }
+
+    fun listarCuentasClienteConEmpresa(actorId: Long): List<CuentaEmpresaLocal> {
+        if (!esAdministradorActivo(actorId)) return emptyList()
+        return readableDatabase.rawQuery(
+            "SELECT u.$USR_ID, u.$USR_NOMBRE, ec.id_empresa_cliente, ec.razon_social " +
+                "FROM $TABLA_USUARIO u " +
+                "INNER JOIN $TABLA_ROL r ON r.$ROL_ID = u.$USR_ROL_ID " +
+                "INNER JOIN $TABLA_EMPRESA ec ON ec.id_empresa_cliente = u.$USR_CLIENTE_ID " +
+                "WHERE u.$USR_ACTIVO = 1 AND r.$ROL_CODIGO = ? " +
+                "ORDER BY ec.razon_social, u.$USR_NOMBRE",
+            arrayOf(Rol.CODIGO_CLIENTE)
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        CuentaEmpresaLocal(
+                            idUsuario = cursor.getLong(0),
+                            nombreUsuario = cursor.getString(1),
+                            idEmpresa = cursor.getLong(2),
+                            razonSocial = cursor.getString(3)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun listarInstalacionesDeCuentaCliente(idUsuarioCliente: Long): List<InstalacionCatalogoLocal> =
+        readableDatabase.rawQuery(
+            "SELECT $INS_ID, $INS_NOMBRE FROM $TABLA_INSTALACION " +
+                "WHERE $INS_CLIENTE_ID = ? ORDER BY $INS_NOMBRE",
+            arrayOf(idUsuarioCliente.toString())
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(InstalacionCatalogoLocal(cursor.getLong(0), cursor.getString(1)))
+                }
+            }
+        }
+
+    fun crearInstalacionAdministrativa(
+        actorId: Long,
+        idUsuarioCliente: Long,
+        nombre: String
+    ): Boolean {
+        if (!esAdministradorActivo(actorId) || nombre.isBlank()) return false
+        val db = writableDatabase
+        val clienteValido = db.rawQuery(
+            "SELECT 1 FROM $TABLA_USUARIO u " +
+                "INNER JOIN $TABLA_ROL r ON r.$ROL_ID = u.$USR_ROL_ID " +
+                "INNER JOIN $TABLA_EMPRESA ec ON ec.id_empresa_cliente = u.$USR_CLIENTE_ID " +
+                "WHERE u.$USR_ID = ? AND u.$USR_ACTIVO = 1 AND r.$ROL_CODIGO = ?",
+            arrayOf(idUsuarioCliente.toString(), Rol.CODIGO_CLIENTE)
+        ).use { it.moveToFirst() }
+        if (!clienteValido) return false
+
+        val existente = db.rawQuery(
+            "SELECT 1 FROM $TABLA_INSTALACION " +
+                "WHERE $INS_CLIENTE_ID = ? AND LOWER($INS_NOMBRE) = LOWER(?) LIMIT 1",
+            arrayOf(idUsuarioCliente.toString(), nombre.trim())
+        ).use { it.moveToFirst() }
+        if (existente) return false
+
+        val valores = ContentValues().apply {
+            put(INS_CLIENTE_ID, idUsuarioCliente)
+            put(INS_NOMBRE, nombre.trim())
+        }
+        return db.insert(TABLA_INSTALACION, null, valores) != -1L
+    }
+
+    private fun esAdministradorActivo(idUsuario: Long): Boolean =
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM $TABLA_USUARIO u " +
+                "INNER JOIN $TABLA_ROL r ON r.$ROL_ID = u.$USR_ROL_ID " +
+                "WHERE u.$USR_ID = ? AND u.$USR_ACTIVO = 1 AND r.$ROL_CODIGO IN (?, ?)",
+            arrayOf(idUsuario.toString(), Rol.CODIGO_INGENIERO, Rol.CODIGO_JEFE_TECNICO)
+        ).use { it.moveToFirst() }
+
+    private fun existeValor(
+        db: SQLiteDatabase,
+        tabla: String,
+        columna: String,
+        valor: String
+    ): Boolean = db.rawQuery(
+        "SELECT 1 FROM $tabla WHERE $columna = ? LIMIT 1",
+        arrayOf(valor)
+    ).use { it.moveToFirst() }
+
+    private fun existeValorIgnorandoMayusculas(
+        db: SQLiteDatabase,
+        tabla: String,
+        columna: String,
+        valor: String
+    ): Boolean = db.rawQuery(
+        "SELECT 1 FROM $tabla WHERE LOWER($columna) = LOWER(?) LIMIT 1",
+        arrayOf(valor)
+    ).use { it.moveToFirst() }
 
     fun actualizarFotoUsuario(idUsuario: Long, fotoBytes: ByteArray): Boolean {
         val valores = ContentValues().apply { put(USR_FOTO, fotoBytes) }
@@ -564,67 +874,6 @@ class InduztekDbHelper(
                 }
             }
         }
-
-    fun listarEmpresasParaAsociacion(): List<ClienteCatalogoLocal> =
-        readableDatabase.rawQuery(
-            "SELECT id_empresa_cliente, razon_social FROM $TABLA_EMPRESA ORDER BY razon_social",
-            null
-        ).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    add(ClienteCatalogoLocal(cursor.getLong(0), cursor.getString(1)))
-                }
-            }
-        }
-
-    fun listarEmpresasRegistradas(): List<ClienteCatalogoLocal> = listarEmpresasParaAsociacion()
-
-    fun listarClientesSinEmpresa(): List<Usuario> =
-        consultarUsuarios(
-            "$SQL_SELECT_USUARIOS WHERE u.$USR_ROL_ID = ? AND u.$USR_ACTIVO = 1 " +
-                "AND u.$USR_CLIENTE_ID IS NULL ORDER BY u.$USR_NOMBRE",
-            arrayOf(Rol.ID_CLIENTE.toString())
-        )
-
-    fun listarUsuariosClienteSinEmpresa(): List<Usuario> = listarClientesSinEmpresa()
-
-    fun asociarClienteAEmpresa(idCliente: Long, idEmpresa: Long): Boolean {
-        val valores = ContentValues().apply { put(USR_CLIENTE_ID, idEmpresa) }
-        val clausula = "$USR_ID = ? AND $USR_ROL_ID = ? AND $USR_ACTIVO = 1 " +
-            "AND $USR_CLIENTE_ID IS NULL AND EXISTS (" +
-            "SELECT 1 FROM $TABLA_EMPRESA WHERE id_empresa_cliente = ?)"
-        val argumentos = arrayOf(
-            idCliente.toString(),
-            Rol.ID_CLIENTE.toString(),
-            idEmpresa.toString()
-        )
-
-        return writableDatabase.update(TABLA_USUARIO, valores, clausula, argumentos) == 1
-    }
-
-    fun asociarUsuarioClienteAEmpresa(
-        idUsuarioCliente: Long,
-        idEmpresa: Long,
-        idResponsable: Long
-    ): Boolean {
-        val db = writableDatabase
-        val rolesValidos = db.rawQuery(
-            "SELECT " +
-                "(SELECT $USR_ROL_ID FROM $TABLA_USUARIO WHERE $USR_ID = ? AND $USR_ACTIVO = 1), " +
-                "(SELECT $USR_ROL_ID FROM $TABLA_USUARIO WHERE $USR_ID = ? AND $USR_ACTIVO = 1), " +
-                "(SELECT 1 FROM $TABLA_EMPRESA WHERE id_empresa_cliente = ?)",
-            arrayOf(idResponsable.toString(), idUsuarioCliente.toString(), idEmpresa.toString())
-        ).use { cursor ->
-            cursor.moveToFirst() &&
-                !cursor.isNull(0) &&
-                cursor.getLong(0) in setOf(Rol.ID_INGENIERO, Rol.ID_JEFE_TECNICO) &&
-                !cursor.isNull(1) &&
-                cursor.getLong(1) == Rol.ID_CLIENTE &&
-                !cursor.isNull(2)
-        }
-        if (!rolesValidos) return false
-        return asociarClienteAEmpresa(idUsuarioCliente, idEmpresa)
-    }
 
     fun listarClientesTecnico(idTecnico: Long): List<ClienteCatalogoLocal> =
         readableDatabase.rawQuery(
@@ -1213,7 +1462,10 @@ class InduztekDbHelper(
                     rolCodigo = cursor.getString(cursor.getColumnIndexOrThrow("rol_codigo")),
                     idEmpresaCliente = if (cursor.isNull(cursor.getColumnIndexOrThrow(USR_CLIENTE_ID))) null else cursor.getLong(cursor.getColumnIndexOrThrow(USR_CLIENTE_ID)),
                     activo = cursor.getInt(cursor.getColumnIndexOrThrow(USR_ACTIVO)) == 1,
-                    avatar = fotoBytes
+                    avatar = fotoBytes,
+                    debeCambiarContrasena = cursor.getInt(
+                        cursor.getColumnIndexOrThrow(USR_DEBE_CAMBIAR_CLAVE)
+                    ) == 1
                 ))
             }
         }

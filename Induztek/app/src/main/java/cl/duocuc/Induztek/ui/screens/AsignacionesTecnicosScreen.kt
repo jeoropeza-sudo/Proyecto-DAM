@@ -26,7 +26,11 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -80,6 +84,9 @@ fun AsignacionesTecnicosScreen(
     var busqueda by remember { mutableStateOf("") }
     var mensaje by remember { mutableStateOf<String?>(null) }
     var confirmarGuardado by remember { mutableStateOf(false) }
+    var empresasExpandidas by remember(instalaciones) {
+        mutableStateOf(setOf(instalaciones.firstOrNull()?.empresa.orEmpty()))
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val instalacionesFiltradas = instalaciones.filter {
@@ -326,30 +333,84 @@ fun AsignacionesTecnicosScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            instalacionesFiltradas.groupBy { it.empresa }.forEach { (empresa, lista) ->
-                                Text(
-                                    empresa,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                                lista.forEach { instalacion ->
-                                    FilaInstalacionAsignable(
-                                        instalacion = instalacion,
-                                        seleccionada = instalacion.idInstalacion in instalacionesSeleccionadas,
-                                        asignadaAOtroTecnico = instalacionesOcupadas[instalacion.idInstalacion],
-                                        onCambiar = { marcada ->
-                                            instalacionesSeleccionadas =
-                                                if (marcada) {
-                                                    instalacionesSeleccionadas + instalacion.idInstalacion
-                                                } else {
-                                                    instalacionesSeleccionadas - instalacion.idInstalacion
+                            instalacionesFiltradas
+                                .groupBy { it.empresa }
+                                .toSortedMap()
+                                .forEach { (empresa, lista) ->
+                                    val expandida = busqueda.isNotBlank() || empresa in empresasExpandidas
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable(enabled = busqueda.isBlank()) {
+                                                        empresasExpandidas =
+                                                            if (empresa in empresasExpandidas) {
+                                                                empresasExpandidas - empresa
+                                                            } else {
+                                                                empresasExpandidas + empresa
+                                                            }
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Text(
+                                                        empresa,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        "${lista.count { it.idInstalacion in instalacionesSeleccionadas }} de ${lista.size} instalaciones seleccionadas",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
                                                 }
-                                            mensaje = null
+                                                Icon(
+                                                    imageVector = if (expandida) {
+                                                        Icons.Filled.ExpandLess
+                                                    } else {
+                                                        Icons.Filled.ExpandMore
+                                                    },
+                                                    contentDescription = if (expandida) {
+                                                        "Contraer $empresa"
+                                                    } else {
+                                                        "Expandir $empresa"
+                                                    },
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (expandida) {
+                                                HorizontalDivider()
+                                                lista.forEach { instalacion ->
+                                                    FilaInstalacionAsignable(
+                                                        instalacion = instalacion,
+                                                        seleccionada = instalacion.idInstalacion in instalacionesSeleccionadas,
+                                                        asignadaAOtroTecnico = instalacionesOcupadas[instalacion.idInstalacion],
+                                                        onCambiar = { marcada ->
+                                                            instalacionesSeleccionadas =
+                                                                if (marcada) {
+                                                                    instalacionesSeleccionadas + instalacion.idInstalacion
+                                                                } else {
+                                                                    instalacionesSeleccionadas - instalacion.idInstalacion
+                                                                }
+                                                            mensaje = null
+                                                        }
+                                                    )
+                                                }
+                                            }
                                         }
-                                    )
-                                }
+                                    }
                             }
                         }
                     }

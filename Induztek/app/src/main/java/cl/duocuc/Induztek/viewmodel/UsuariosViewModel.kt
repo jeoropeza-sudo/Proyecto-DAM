@@ -7,16 +7,21 @@ import androidx.lifecycle.AndroidViewModel
 import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.data.SesionPreferencias
+import cl.duocuc.Induztek.model.CrearCuentaResultado
+import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.model.ValidarContrasena
 import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.security.SecureRandom
 
 class UsuariosViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = InduztekDbHelper(application)
     private val sesionPreferencias = SesionPreferencias(application)
+    private val secureRandom = SecureRandom()
 
     private val _usuarioActual = MutableStateFlow<Usuario?>(null)
     val usuarioActual: StateFlow<Usuario?> = _usuarioActual.asStateFlow()
@@ -94,6 +99,102 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
             return true
         }
         return false
+    }
+
+    fun crearCuentaAdministrativa(
+        actor: Usuario?,
+        rut: String,
+        nombre: String,
+        correo: String,
+        telefono: String,
+        rol: String,
+        rutEmpresa: String? = null,
+        razonSocial: String? = null,
+        giro: String? = null,
+        direccion: String? = null,
+        contactoNombre: String? = null,
+        contactoCorreo: String? = null,
+        contactoTelefono: String? = null,
+        nombreInstalacion: String? = null
+    ): CrearCuentaResultado {
+        if (actor == null ||
+            actor.rolCodigo !in setOf(Rol.CODIGO_INGENIERO, Rol.CODIGO_JEFE_TECNICO)
+        ) {
+            return CrearCuentaResultado(
+                campoError = "general",
+                mensajeError = "Solo Ingeniería o Jefatura Técnica pueden crear cuentas."
+            )
+        }
+
+        val passwordTemporal = generarContrasenaTemporal()
+        return db.crearCuentaAdministrativa(
+            actorId = actor.idUsuario,
+            rut = rut,
+            nombre = nombre,
+            correo = correo,
+            telefono = telefono,
+            rolCodigo = rol,
+            contrasenaTemporal = passwordTemporal,
+            rutEmpresa = rutEmpresa,
+            razonSocial = razonSocial,
+            giro = giro,
+            direccion = direccion,
+            contactoNombre = contactoNombre,
+            contactoCorreo = contactoCorreo,
+            contactoTelefono = contactoTelefono,
+            nombreInstalacion = nombreInstalacion
+        ).let { resultado ->
+            if (resultado.exitosa &&
+                !ValidarContrasena.esSegura(resultado.contrasenaTemporal.orEmpty())
+            ) {
+                error("La contraseña temporal generada no cumple la política de seguridad.")
+            }
+            resultado
+        }
+    }
+
+    fun validarDisponibilidadCuenta(rut: String, correo: String): Map<String, String> =
+        buildMap {
+            if (db.existeRutUsuario(rut)) {
+                put("rut", "Ya existe una cuenta con ese RUT.")
+            }
+            if (db.existeCorreoUsuario(correo)) {
+                put("correo", "Ya existe una cuenta con ese correo.")
+            }
+        }
+
+    fun validarDisponibilidadEmpresa(rut: String, razonSocial: String): Map<String, String> =
+        buildMap {
+            if (db.existeRutEmpresa(rut)) {
+                put("rutEmpresa", "Ya existe una empresa con ese RUT.")
+            }
+            if (db.existeRazonSocialEmpresa(razonSocial)) {
+                put("razonSocial", "Ya existe una empresa con esa razón social.")
+            }
+        }
+
+    private fun generarContrasenaTemporal(): String {
+        val mayusculas = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+        val minusculas = "abcdefghijkmnopqrstuvwxyz"
+        val numeros = "23456789"
+        val especiales = "!@#$%&*+-_"
+        val todos = mayusculas + minusculas + numeros + especiales
+        val caracteres = mutableListOf(
+            mayusculas[secureRandom.nextInt(mayusculas.length)],
+            minusculas[secureRandom.nextInt(minusculas.length)],
+            numeros[secureRandom.nextInt(numeros.length)],
+            especiales[secureRandom.nextInt(especiales.length)]
+        )
+        repeat(12) {
+            caracteres += todos[secureRandom.nextInt(todos.length)]
+        }
+        for (i in caracteres.lastIndex downTo 1) {
+            val j = secureRandom.nextInt(i + 1)
+            val temporal = caracteres[i]
+            caracteres[i] = caracteres[j]
+            caracteres[j] = temporal
+        }
+        return caracteres.joinToString("")
     }
 
     fun cambiarAvatarDesdeCamara(foto: Bitmap) {

@@ -21,30 +21,18 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -55,9 +43,7 @@ import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.ui.components.LogoInduztek
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InicioScreen(
     viewModel: ProtocoloViewModel,
@@ -65,7 +51,9 @@ fun InicioScreen(
     onAbrirPortalCliente: () -> Unit,
     onAbrirProtocolo: () -> Unit,
     onAbrirHistorial: () -> Unit,
-    onAbrirAsignaciones: () -> Unit
+    onAbrirAsignaciones: () -> Unit,
+    onCrearCuenta: () -> Unit,
+    onGestionarInstalaciones: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val rol = usuarioActivo?.rolCodigo.orEmpty()
@@ -74,52 +62,9 @@ fun InicioScreen(
     val puedeAsignar = rol.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
             rol.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
     val clienteSinEmpresa = esCliente && usuarioActivo?.idEmpresaCliente == null
-    var clientesSinEmpresa by remember { mutableStateOf(emptyList<Usuario>()) }
-    val empresas = remember(usuarioActivo?.idUsuario, puedeAsignar) {
-        viewModel.empresasParaAsociarCliente(usuarioActivo)
-    }
-    var idClienteSeleccionado by remember { mutableStateOf<Long?>(null) }
-    var idEmpresaSeleccionada by remember { mutableStateOf<Long?>(null) }
-    var menuClientesAbierto by remember { mutableStateOf(false) }
-    var menuEmpresasAbierto by remember { mutableStateOf(false) }
-    var mensajeAsociacion by remember { mutableStateOf<String?>(null) }
-    var mostrarAsociacion by remember { mutableStateOf(false) }
-    var confirmarAsociacion by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    fun asociarClienteSeleccionado() {
-        val idCliente = idClienteSeleccionado
-        val idEmpresa = idEmpresaSeleccionada
-        if (idCliente == null) {
-            mensajeAsociacion = "Selecciona la cuenta cliente que quieres vincular."
-            return
-        }
-        if (idEmpresa == null) {
-            mensajeAsociacion = "Selecciona la empresa a la que pertenece la cuenta."
-            return
-        }
-
-        val asociada = viewModel.asociarClienteAEmpresa(idCliente, idEmpresa, usuarioActivo)
-        if (asociada) {
-            clientesSinEmpresa = viewModel.clientesSinEmpresa(usuarioActivo)
-            idClienteSeleccionado = clientesSinEmpresa.firstOrNull()?.idUsuario
-            mensajeAsociacion = null
-            scope.launch {
-                snackbarHostState.showSnackbar("La cuenta cliente quedó vinculada a la empresa.")
-            }
-        } else {
-            mensajeAsociacion = "No se vinculó la cuenta. Verifica que el cliente siga pendiente y que la empresa sea correcta."
-        }
-    }
 
     LaunchedEffect(usuarioActivo?.idUsuario) {
-        usuarioActivo?.let {
-            viewModel.inicializarParaUsuario(it)
-            clientesSinEmpresa = viewModel.clientesSinEmpresa(it)
-            idClienteSeleccionado = clientesSinEmpresa.firstOrNull()?.idUsuario
-            idEmpresaSeleccionada = empresas.firstOrNull()?.idEmpresa
-        }
+        usuarioActivo?.let(viewModel::inicializarParaUsuario)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -175,9 +120,8 @@ fun InicioScreen(
             item {
                 PanelInicio(
                     titulo = "Tu cuenta aún no está lista",
-                    texto = "Paso 1: contacta a Ingeniería o Jefatura Técnica para que vinculen tu cuenta a tu empresa.\n\n" +
-                            "Paso 2: cuando esté vinculada, entra a «Mi Portal» para consultar los protocolos autorizados.\n\n" +
-                            "La app no permite solicitar servicios ni crear ubicaciones.",
+                    texto = "Esta cuenta no tiene una empresa registrada. Contacta a soporte para revisar los datos de tu cuenta.\n\n" +
+                            "Las cuentas nuevas se crean junto con los datos de su empresa. La app no permite solicitar servicios ni crear ubicaciones.",
                     destacado = true
                 )
             }
@@ -225,14 +169,8 @@ fun InicioScreen(
                             add(AccionInicio("Registrar", "Nuevo protocolo", Icons.Filled.Description, onAbrirProtocolo))
                             add(AccionInicio("Historial", "Consultar equipos", Icons.Filled.History, onAbrirHistorial))
                             add(AccionInicio("Asignaciones", "Técnicos y equipos", Icons.Filled.Assignment, onAbrirAsignaciones))
-                            add(
-                                AccionInicio(
-                                    "Vincular cliente",
-                                    "Asociar cuenta a empresa",
-                                    Icons.Filled.PersonAdd,
-                                    { mostrarAsociacion = !mostrarAsociacion }
-                                )
-                            )
+                            add(AccionInicio("Crear cuenta", "Usuario y empresa cliente", Icons.Filled.PersonAdd, onCrearCuenta))
+                            add(AccionInicio("Instalaciones", "Crear plantas o sucursales", Icons.Filled.Business, onGestionarInstalaciones))
                         }
                         else -> emptyList()
                     }
@@ -252,77 +190,10 @@ fun InicioScreen(
                             }
                         }
                     }
-                    if (puedeAsignar && mostrarAsociacion) {
-                        if (clientesSinEmpresa.isEmpty()) {
-                            PanelInicio(
-                                titulo = "No hay cuentas pendientes",
-                                texto = "Todas las cuentas cliente están vinculadas a una empresa."
-                            )
-                        } else {
-                            PanelAsociarCliente(
-                                clientes = clientesSinEmpresa,
-                                empresas = empresas,
-                                idClienteSeleccionado = idClienteSeleccionado,
-                                idEmpresaSeleccionada = idEmpresaSeleccionada,
-                                menuClientesAbierto = menuClientesAbierto,
-                                menuEmpresasAbierto = menuEmpresasAbierto,
-                                mensaje = mensajeAsociacion,
-                                onMenuClientes = { menuClientesAbierto = it },
-                                onMenuEmpresas = { menuEmpresasAbierto = it },
-                                onSeleccionCliente = {
-                                    idClienteSeleccionado = it
-                                    mensajeAsociacion = null
-                                },
-                                onSeleccionEmpresa = {
-                                    idEmpresaSeleccionada = it
-                                    mensajeAsociacion = null
-                                },
-                                onAsociar = { confirmarAsociacion = true }
-                            )
-                        }
-                    }
                 }
             }
         }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-    }
-
-    if (confirmarAsociacion) {
-        val clienteSeleccionado = clientesSinEmpresa.firstOrNull {
-            it.idUsuario == idClienteSeleccionado
-        }
-        val empresaSeleccionada = empresas.firstOrNull {
-            it.idEmpresa == idEmpresaSeleccionada
-        }
-        AlertDialog(
-            onDismissRequest = { confirmarAsociacion = false },
-            title = { Text("Confirmar asociación") },
-            text = {
-                Text(
-                    "¿Vincular la cuenta ${clienteSeleccionado?.nombre.orEmpty()} con " +
-                        "${empresaSeleccionada?.razonSocial.orEmpty()}? Esta acción cambia el acceso del cliente."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmarAsociacion = false
-                        asociarClienteSeleccionado()
-                    }
-                ) {
-                    Text("Vincular")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmarAsociacion = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
     }
 }
 
@@ -407,116 +278,6 @@ private fun PanelInicio(
         ) {
             Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(texto, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PanelAsociarCliente(
-    clientes: List<Usuario>,
-    empresas: List<cl.duocuc.Induztek.model.ClienteCatalogoLocal>,
-    idClienteSeleccionado: Long?,
-    idEmpresaSeleccionada: Long?,
-    menuClientesAbierto: Boolean,
-    menuEmpresasAbierto: Boolean,
-    mensaje: String?,
-    onMenuClientes: (Boolean) -> Unit,
-    onMenuEmpresas: (Boolean) -> Unit,
-    onSeleccionCliente: (Long) -> Unit,
-    onSeleccionEmpresa: (Long) -> Unit,
-    onAsociar: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "Vincular una cuenta cliente",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "Elige la cuenta y luego la empresa a la que pertenece. Esto habilita únicamente los datos de esa empresa.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            SelectorInicio(
-                etiqueta = "1. Cuenta cliente",
-                valor = clientes.firstOrNull { it.idUsuario == idClienteSeleccionado }
-                    ?.let { "${it.nombre} · ${it.correo}" }.orEmpty(),
-                expandido = menuClientesAbierto,
-                opciones = clientes,
-                textoOpcion = { "${it.nombre} · ${it.correo}" },
-                onExpandir = onMenuClientes,
-                onSeleccionar = { onSeleccionCliente(it.idUsuario) }
-            )
-            SelectorInicio(
-                etiqueta = "2. Empresa verificada",
-                valor = empresas.firstOrNull { it.idEmpresa == idEmpresaSeleccionada }
-                    ?.razonSocial.orEmpty(),
-                expandido = menuEmpresasAbierto,
-                opciones = empresas,
-                textoOpcion = { it.razonSocial },
-                onExpandir = onMenuEmpresas,
-                onSeleccionar = { onSeleccionEmpresa(it.idEmpresa) }
-            )
-            Button(
-                onClick = onAsociar,
-                enabled = idClienteSeleccionado != null && idEmpresaSeleccionada != null,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Vincular cuenta a empresa")
-            }
-            mensaje?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun <T> SelectorInicio(
-    etiqueta: String,
-    valor: String,
-    expandido: Boolean,
-    opciones: List<T>,
-    textoOpcion: (T) -> String,
-    onExpandir: (Boolean) -> Unit,
-    onSeleccionar: (T) -> Unit
-) {
-    ExposedDropdownMenuBox(
-        expanded = expandido,
-        onExpandedChange = onExpandir,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = valor,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(etiqueta) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandido) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-        )
-        ExposedDropdownMenu(
-            expanded = expandido,
-            onDismissRequest = { onExpandir(false) }
-        ) {
-            opciones.forEach { opcion ->
-                DropdownMenuItem(
-                    text = { Text(textoOpcion(opcion)) },
-                    onClick = {
-                        onSeleccionar(opcion)
-                        onExpandir(false)
-                    }
-                )
-            }
         }
     }
 }

@@ -13,13 +13,13 @@ object EstilosCampo {
 
     @Composable
     fun colores(): TextFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        focusedBorderColor = MaterialTheme.colorScheme.tertiary,
         unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        focusedLabelColor = MaterialTheme.colorScheme.tertiary,
         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        focusedLeadingIconColor = MaterialTheme.colorScheme.tertiary,
         unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         errorBorderColor = MaterialTheme.colorScheme.error,
-        cursorColor = MaterialTheme.colorScheme.primary
+        cursorColor = MaterialTheme.colorScheme.tertiary
     )
 }

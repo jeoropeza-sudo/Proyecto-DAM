@@ -60,6 +60,7 @@ import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.permisos.Permisos
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
+import cl.duocuc.Induztek.ui.components.BotonSecundario
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
 import cl.duocuc.Induztek.ui.components.TarjetaSeccion
 import cl.duocuc.Induztek.ui.theme.Dimens
@@ -114,6 +115,7 @@ fun FormularioProtocoloScreen(
     val esIngenieria = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
         usuarioActivo?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
     val visitaEnCurso = uiState.protocolosPendientesVisita > 0
+    val tagsSeleccionables = uiState.tagsDisponibles.filterNot { it in uiState.tagsPendientesVisita }
 
     LaunchedEffect(uiState.idProtocoloRegistrado) {
         val idProtocolo = uiState.idProtocoloRegistrado ?: return@LaunchedEffect
@@ -258,10 +260,23 @@ fun FormularioProtocoloScreen(
                         )
                         SelectorDesplegable(
                             label = "Equipo a revisar (TAG)",
-                            opciones = uiState.tagsDisponibles,
-                            seleccionActual = uiState.tagEquipo,
+                            opciones = tagsSeleccionables,
+                            seleccionActual = uiState.tagEquipo.takeIf { it in tagsSeleccionables }.orEmpty(),
                             onSeleccion = { viewModel.onTagEquipoSeleccionado(it) },
-                            habilitado = uiState.tagsDisponibles.isNotEmpty()
+                            habilitado = tagsSeleccionables.isNotEmpty()
+                        )
+                        if (uiState.tagsDisponibles.isNotEmpty()) {
+                            Text(
+                                "Cada TAG corresponde a un protocolo. Puedes agregar varios equipos a la misma visita; se registrará un protocolo por equipo.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        ErrorCampoProtocolo(
+                            uiState.mensajeErrorFormulario?.takeIf {
+                                it.startsWith("Este equipo ya fue agregado") ||
+                                    it.startsWith("Cierre la visita pendiente")
+                            }
                         )
                         if (uiState.tagsDisponibles.isEmpty()) {
                             Text(
@@ -271,14 +286,34 @@ fun FormularioProtocoloScreen(
                             )
                         }
                     }
+                    if (visitaEnCurso && tagsSeleccionables.isEmpty()) {
+                        Text(
+                            "Ya agregaste todos los equipos disponibles de esta instalación a la visita.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 if (pasoActual == 1) {
                     TarjetaSeccion(titulo = "2. DATOS DE LA VISITA") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = uiState.fechaVisita, onValueChange = {}, label = { Text("Fecha") }, readOnly = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = uiState.horaInicio, onValueChange = {}, label = { Text("Hora Inicio") }, readOnly = true, modifier = Modifier.weight(1f))
+                        CampoSoloLectura(
+                            etiqueta = "Fecha",
+                            valor = uiState.fechaVisita,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CampoSoloLectura(
+                            etiqueta = "Hora de inicio",
+                            valor = uiState.horaInicio,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
+                    ErrorCampoProtocolo(
+                        uiState.mensajeErrorFormulario?.takeIf {
+                            it.startsWith("La fecha u hora")
+                        }
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = uiState.tempAmbiente,
@@ -302,12 +337,9 @@ fun FormularioProtocoloScreen(
                         )
                     }
                     if (esTecnico) {
-                        OutlinedTextField(
-                            value = uiState.tecnicoNombre,
-                            onValueChange = {},
-                            label = { Text("Técnico responsable") },
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth()
+                        CampoSoloLectura(
+                            etiqueta = "Técnico responsable",
+                            valor = uiState.tecnicoNombre
                         )
                     }
                     if (esIngenieria) {
@@ -367,28 +399,26 @@ fun FormularioProtocoloScreen(
                 }
 
                 TarjetaSeccion(titulo = "2. DATOS DEL EQUIPO (PLACA)") {
-                    OutlinedTextField(
-                        value = uiState.tagEquipo,
-                        onValueChange = {},
-                        label = { Text("Equipo seleccionado (TAG)") },
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    CampoSoloLectura(etiqueta = "Equipo seleccionado (TAG)", valor = uiState.tagEquipo)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = uiState.tipoEquipo, onValueChange = {}, label = { Text("Tipo") }, readOnly = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = uiState.marcaEquipo, onValueChange = {}, label = { Text("Marca") }, readOnly = true, modifier = Modifier.weight(1f))
+                        CampoSoloLectura("Tipo", uiState.tipoEquipo, Modifier.weight(1f))
+                        CampoSoloLectura("Marca", uiState.marcaEquipo, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = uiState.modeloEquipo, onValueChange = {}, label = { Text("Modelo") }, readOnly = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = uiState.potenciaKva, onValueChange = {}, label = { Text("Potencia") }, readOnly = true, modifier = Modifier.weight(1f))
+                        CampoSoloLectura("Modelo", uiState.modeloEquipo, Modifier.weight(1f))
+                        CampoSoloLectura("Potencia", uiState.potenciaKva, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = uiState.numeroSerieEquipo, onValueChange = {}, label = { Text("Nº Serie") }, readOnly = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = uiState.anoFabricacion, onValueChange = {}, label = { Text("Año") }, readOnly = true, modifier = Modifier.weight(1f))
+                        CampoSoloLectura("Nº de serie", uiState.numeroSerieEquipo, Modifier.weight(1f))
+                        CampoSoloLectura("Año", uiState.anoFabricacion, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = uiState.tensiones, onValueChange = {}, label = { Text("Tensiones") }, readOnly = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = "${uiState.tapPosition} / ${uiState.conexionGrupo}", onValueChange = {}, label = { Text("Tap / Grupo") }, readOnly = true, modifier = Modifier.weight(1f))
+                        CampoSoloLectura("Tensiones", uiState.tensiones, Modifier.weight(1f))
+                        CampoSoloLectura(
+                            "Tap / Grupo",
+                            "${uiState.tapPosition} / ${uiState.conexionGrupo}",
+                            Modifier.weight(1f)
+                        )
                     }
                 }
                 }
@@ -429,12 +459,12 @@ fun FormularioProtocoloScreen(
                 }
 
                 if (pasoActual == 2) {
-                ErrorCampoProtocolo(uiState.mensajeErrorMediciones)
                 if (uiState.pruebaRealizada) when (uiState.tipoEquipo) {
                     "Transformador" -> {
                         TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
                             val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstAis))
                             Spacer(modifier = Modifier.height(8.dp))
 
                             uiState.aislacionFilas.forEachIndexed { idx, fila ->
@@ -443,22 +473,30 @@ fun FormularioProtocoloScreen(
                                     OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                     Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                                 }
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "Aislación ${fila.devanado}:")
+                                )
                             }
                         }
 
                         TarjetaSeccion(titulo = "4. RELACIÓN DE TRANSFORMACIÓN (TTR)") {
                             val opcionesInstTtr = uiState.instrumentosDisponiblesTtr.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Instrumento TTR", opciones = opcionesInstTtr, seleccionActual = "${uiState.instrumentoTtrSeleccionado.modelo} (${uiState.instrumentoTtrSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoTtrSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstTtr))
                             Spacer(modifier = Modifier.height(8.dp))
 
                             uiState.ttrFilas.forEachIndexed { idx, fila ->
                                 OutlinedTextField(value = fila.relacionMedida, onValueChange = { viewModel.onTtrMedidaCambia(idx, it) }, label = { Text("Fase ${fila.fase} (Teórica: ${fila.relacionTeorica})") }, enabled = !esCliente, modifier = Modifier.fillMaxWidth())
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "TTR ${fila.fase}:")
+                                )
                             }
                         }
 
                         TarjetaSeccion(titulo = "5. RESISTENCIA DE DEVANADOS") {
                             val opcionesInstDev = uiState.instrumentosDisponiblesDevanados.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Instrumento Micro-ohmímetro", opciones = opcionesInstDev, seleccionActual = "${uiState.instrumentoDevanadosSeleccionado.modelo} (${uiState.instrumentoDevanadosSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoDevanadosSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstDev))
                             Spacer(modifier = Modifier.height(8.dp))
 
                             uiState.devanadoFilas.forEachIndexed { idx, fila ->
@@ -475,6 +513,12 @@ fun FormularioProtocoloScreen(
                                     OutlinedTextField(value = fila.faseV, onValueChange = { viewModel.onDevanadoCambia(idx, fila.faseU, it, fila.faseW) }, label = { Text("Fase V") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                     OutlinedTextField(value = fila.faseW, onValueChange = { viewModel.onDevanadoCambia(idx, fila.faseU, fila.faseV, it) }, label = { Text("Fase W") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                 }
+                                ErrorCampoProtocolo(
+                                    errorMedicion(
+                                        uiState.mensajeErrorMediciones,
+                                        "Devanado ${fila.devanado}:"
+                                    )
+                                )
                             }
                         }
                     }
@@ -489,13 +533,20 @@ fun FormularioProtocoloScreen(
                                     OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                     Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                                 }
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "Aislación ${fila.devanado}:")
+                                )
                             }
                         }
                         TarjetaSeccion(titulo = "3. RESISTENCIA DE CONTACTOS (µΩ)") {
                             val opcionesInstDev = uiState.instrumentosDisponiblesDevanados.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Micro-ohmímetro", opciones = opcionesInstDev, seleccionActual = "${uiState.instrumentoDevanadosSeleccionado.modelo} (${uiState.instrumentoDevanadosSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoDevanadosSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstDev))
                             uiState.contactosFilas.forEachIndexed { idx, fila ->
                                 OutlinedTextField(value = fila.valorMedidoUohm, onValueChange = { viewModel.onContactoMedidoCambia(idx, it) }, label = { Text("${fila.polo} (Máx placa: ${if (fila.valorMaximoPlacaUohm > 0) fila.valorMaximoPlacaUohm else "sin dato"} µΩ)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "${fila.polo}:")
+                                )
                             }
                         }
                     }
@@ -504,12 +555,16 @@ fun FormularioProtocoloScreen(
                         TarjetaSeccion(titulo = "3. RESISTENCIA DE AISLACIÓN (MΩ)") {
                             val opcionesInstAis = uiState.instrumentosDisponiblesAislacion.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Instrumento Megóhmetro", opciones = opcionesInstAis, seleccionActual = "${uiState.instrumentoAislacionSeleccionado.modelo} (${uiState.instrumentoAislacionSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoAislacionSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstAis))
                             uiState.aislacionFilas.forEachIndexed { idx, fila ->
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     OutlinedTextField(value = fila.lectura1Min, onValueChange = { viewModel.onAislacionCambia(idx, it, fila.lectura10Min) }, label = { Text("${fila.devanado} 1m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                     OutlinedTextField(value = fila.lectura10Min, onValueChange = { viewModel.onAislacionCambia(idx, fila.lectura1Min, it) }, label = { Text("10m") }, enabled = !esCliente, modifier = Modifier.weight(1f))
                                     Text(text = "IP: ${fila.ipCalculado}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)
                                 }
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "Aislación ${fila.devanado}:")
+                                )
                             }
                         }
                     }
@@ -518,9 +573,13 @@ fun FormularioProtocoloScreen(
                         TarjetaSeccion(titulo = "3. INYECCIÓN SECUNDARIA") {
                             val opcionesInstRele = uiState.instrumentosDisponiblesRele.map { "${it.modelo} (${it.numeroSerie})" }
                             SelectorDesplegable(label = "Instrumento de inyección", opciones = opcionesInstRele, seleccionActual = "${uiState.instrumentoReleSeleccionado.modelo} (${uiState.instrumentoReleSeleccionado.numeroSerie})", onSeleccion = { viewModel.onInstrumentoReleSeleccionado(it) }, habilitado = !esCliente)
+                            ErrorCampoProtocolo(errorInstrumento(uiState.mensajeErrorFormulario, opcionesInstRele))
                             uiState.releFilas.forEachIndexed { idx, fila ->
                                 OutlinedTextField(value = fila.corrienteMedidaA, onValueChange = { viewModel.onReleCorrienteMedidaCambia(idx, it) }, label = { Text("Corriente medida (A)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
                                 OutlinedTextField(value = fila.tiempoMedidoMs, onValueChange = { viewModel.onReleMedicionCambia(idx, it, fila.operaCorrectamente) }, label = { Text("Tiempo Medido (ms) - Esp: ${fila.tiempoEsperadoMs}") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !esCliente, modifier = Modifier.fillMaxWidth())
+                                ErrorCampoProtocolo(
+                                    errorMedicion(uiState.mensajeErrorMediciones, "Relé ${fila.funcion}:")
+                                )
                                 Text(
                                     "Desviación máxima de corriente/tiempo: ${"%.2f".format(java.util.Locale.ROOT, fila.diferenciaTiempoPct)} %",
                                     style = MaterialTheme.typography.bodySmall
@@ -591,7 +650,14 @@ fun FormularioProtocoloScreen(
                     if (uiState.protocolosPendientesVisita == 0) {
                         BotonPrincipal(
                             texto = "Registrar protocolo",
-                            onClick = { confirmarRegistro = true },
+                            onClick = {
+                                when {
+                                    !viewModel.validarDatosVisita() -> pasoActual = 1
+                                    !viewModel.validarMediciones() -> pasoActual = 2
+                                    !viewModel.validarRecepcion() -> pasoActual = 2
+                                    else -> confirmarRegistro = true
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             habilitado = !tecnicoSinAsignaciones
                         )
@@ -626,9 +692,18 @@ fun FormularioProtocoloScreen(
                     }
                     BotonPrincipal(
                         texto = "Agregar equipo a la visita",
-                        onClick = { confirmarAgregarEquipo = true },
+                        onClick = {
+                            when {
+                                !viewModel.validarDatosVisita() -> pasoActual = 1
+                                !viewModel.validarMediciones() -> pasoActual = 2
+                                !viewModel.validarRecepcion() -> pasoActual = 2
+                                else -> confirmarAgregarEquipo = true
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        habilitado = !tecnicoSinAsignaciones
+                        habilitado = !tecnicoSinAsignaciones &&
+                            uiState.tagEquipo !in uiState.tagsPendientesVisita &&
+                            tagsSeleccionables.isNotEmpty()
                     )
                     if (uiState.protocolosPendientesVisita > 0) {
                         BotonPrincipal(
@@ -641,25 +716,47 @@ fun FormularioProtocoloScreen(
                 }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (pasoActual > 0) {
-                        BotonPrincipal(
+                if (pasoActual in 1..2) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        BotonSecundario(
                             texto = "Anterior",
                             onClick = { pasoActual -= 1 },
                             modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    if (pasoActual < 3) {
                         BotonPrincipal(
-                            texto = "Continuar",
-                            onClick = { pasoActual += 1 },
+                            texto = "Siguiente",
+                            onClick = {
+                                val puedeContinuar = when (pasoActual) {
+                                    1 -> viewModel.validarDatosVisita()
+                                    2 -> viewModel.validarMediciones()
+                                    else -> true
+                                }
+                                if (puedeContinuar) pasoActual += 1
+                            },
                             modifier = Modifier.weight(1f),
-                            habilitado = pasoActual != 0 ||
-                                (uiState.idEquipo > 0L && uiState.tagsDisponibles.isNotEmpty())
+                            habilitado = true
                         )
                     }
+                } else if (pasoActual == 0) {
+                    BotonPrincipal(
+                        texto = "Comenzar registro",
+                        onClick = {
+                            if (uiState.idEquipo > 0L && uiState.tagsDisponibles.isNotEmpty()) {
+                                pasoActual = 1
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        habilitado = uiState.idEquipo > 0L && uiState.tagsDisponibles.isNotEmpty()
+                    )
+                } else {
+                    BotonSecundario(
+                        texto = "Volver al paso anterior",
+                        onClick = { pasoActual -= 1 },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -685,7 +782,8 @@ fun FormularioProtocoloScreen(
                             pasoActual = if (
                                 estadoActualizado.mensajeErrorTemperatura != null ||
                                 estadoActualizado.mensajeErrorHumedad != null ||
-                                estadoActualizado.mensajeErrorDescripcionMantenimiento != null
+                                estadoActualizado.mensajeErrorDescripcionMantenimiento != null ||
+                                estadoActualizado.mensajeErrorFormulario?.startsWith("La fecha u hora") == true
                             ) {
                                 1
                             } else {
@@ -722,6 +820,19 @@ fun FormularioProtocoloScreen(
                         if (agregado) {
                             evidenciaEquipo = null
                             pasoActual = 0
+                            val estadoActualizado = viewModel.uiState.value
+                            estadoActualizado.tagsDisponibles
+                                .firstOrNull { it !in estadoActualizado.tagsPendientesVisita }
+                                ?.let(viewModel::onTagEquipoSeleccionado)
+                        } else {
+                            val estadoActualizado = viewModel.uiState.value
+                            pasoActual = when {
+                                estadoActualizado.mensajeErrorTemperatura != null ||
+                                    estadoActualizado.mensajeErrorHumedad != null ||
+                                    estadoActualizado.mensajeErrorDescripcionMantenimiento != null ||
+                                    estadoActualizado.mensajeErrorFormulario?.startsWith("La fecha u hora") == true -> 1
+                                else -> 2
+                            }
                         }
                     }
                 ) {
@@ -797,6 +908,27 @@ fun SelectorDesplegable(
 }
 
 @Composable
+private fun CampoSoloLectura(
+    etiqueta: String,
+    valor: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = etiqueta,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = valor.ifBlank { "Sin información" },
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
 private fun ErrorCampoProtocolo(error: String?) {
     AnimatedVisibility(
         visible = error != null,
@@ -811,4 +943,16 @@ private fun ErrorCampoProtocolo(error: String?) {
             )
         }
     }
+}
+
+private fun errorMedicion(error: String?, prefijo: String): String? =
+    error?.takeIf { it.startsWith(prefijo) }
+
+private fun errorInstrumento(error: String?, opciones: List<String>): String? {
+    val instrumento = error
+        ?.takeIf { it.startsWith("La calibración") }
+        ?.substringAfter("instrumento ")
+        ?.substringBefore(" (S/N:")
+        ?: return null
+    return error.takeIf { opciones.any { opcion -> opcion.startsWith(instrumento) } }
 }

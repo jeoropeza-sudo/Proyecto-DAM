@@ -19,6 +19,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +41,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -63,8 +67,7 @@ fun ComprobanteTerrenoScreen(
     idProtocolo: Long,
     viewModel: ProtocoloViewModel,
     usuarioActivo: Usuario?,
-    onVolver: () -> Unit,
-    onVolverInicio: () -> Unit
+    onVolver: () -> Unit
 ) {
     var protocolo by remember(idProtocolo) { mutableStateOf<ProtocoloTerreno?>(null) }
     var motivoRevision by remember(idProtocolo) { mutableStateOf("") }
@@ -130,10 +133,22 @@ fun ComprobanteTerrenoScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onVolver) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver"
+                        )
+                    }
+                },
                 title = {
                     MarcaCompacta(subtitulo = "Acta de terreno", sobreFondoOscuro = true)
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary)
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
         }
     ) { innerPadding ->
@@ -360,9 +375,6 @@ fun ComprobanteTerrenoScreen(
 
             Button(onClick = onVolver, modifier = Modifier.fillMaxWidth()) {
                 Text("VOLVER")
-            }
-            Button(onClick = onVolverInicio, modifier = Modifier.fillMaxWidth()) {
-                Text("VOLVER AL INICIO")
             }
         }
     }

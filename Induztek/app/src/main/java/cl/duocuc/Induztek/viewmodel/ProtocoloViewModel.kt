@@ -6,6 +6,8 @@ import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.model.FormularioProtocoloUiState
 import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.ClienteCatalogoLocal
+import cl.duocuc.Induztek.model.CuentaEmpresaLocal
+import cl.duocuc.Induztek.model.InstalacionCatalogoLocal
 import cl.duocuc.Induztek.model.MedicionAislacionUiState
 import cl.duocuc.Induztek.model.MedicionContactosUiState
 import cl.duocuc.Induztek.model.MedicionReleUiState
@@ -129,32 +131,31 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             emptyList()
         }
 
-    fun clientesSinEmpresa(usuario: Usuario?): List<Usuario> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarUsuariosClienteSinEmpresa()
+    fun clientesConEmpresaParaInstalaciones(usuario: Usuario?): List<CuentaEmpresaLocal> =
+        if (puedeAdministrarAsignaciones(usuario) && usuario != null) {
+            db.listarCuentasClienteConEmpresa(usuario.idUsuario)
         } else {
             emptyList()
         }
 
-    fun empresasParaAsociarCliente(usuario: Usuario?) =
+    fun instalacionesDeClienteParaGestion(
+        idCliente: Long,
+        usuario: Usuario?
+    ): List<InstalacionCatalogoLocal> =
         if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarEmpresasRegistradas()
+            db.listarInstalacionesDeCuentaCliente(idCliente)
         } else {
             emptyList()
         }
 
-    fun asociarClienteAEmpresa(
-        idUsuarioCliente: Long,
-        idEmpresa: Long,
+    fun crearInstalacionParaCliente(
+        idCliente: Long,
+        nombre: String,
         usuario: Usuario?
     ): Boolean {
         val responsable = usuario ?: return false
         if (!puedeAdministrarAsignaciones(responsable)) return false
-        return db.asociarUsuarioClienteAEmpresa(
-            idUsuarioCliente,
-            idEmpresa,
-            responsable.idUsuario
-        )
+        return db.crearInstalacionAdministrativa(responsable.idUsuario, idCliente, nombre)
     }
 
     fun instalacionesParaAsignacion(usuario: Usuario?) =
@@ -747,6 +748,144 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(resultadoGlobal = peor) }
     }
 
+    fun validarDatosVisita(): Boolean {
+        val estado = _uiState.value
+        val temperatura = estado.tempAmbiente.replace(',', '.').toDoubleOrNull()
+        val humedad = estado.humedadPct.replace(',', '.').toDoubleOrNull()
+        val errorTemperatura = if (temperatura == null || !temperatura.isFinite()) {
+            "Ingresa una temperatura numérica, por ejemplo 20 o 20,5."
+        } else null
+        val errorHumedad = if (humedad == null || !humedad.isFinite() || humedad !in 0.0..100.0) {
+            "Ingresa un valor de humedad entre 0 y 100 %."
+        } else null
+        val errorMantenimiento =
+            if (
+                estado.tipoVisita.replace('_', ' ') == "PRUEBAS Y MANTENIMIENTO" &&
+                estado.descripcionMantenimiento.isBlank()
+            ) {
+                "Describe el mantenimiento realizado para cerrar esta visita."
+            } else null
+
+        _uiState.update {
+            it.copy(
+                mensajeErrorTemperatura = errorTemperatura,
+                mensajeErrorHumedad = errorHumedad,
+                mensajeErrorDescripcionMantenimiento = errorMantenimiento
+            )
+        }
+        return errorTemperatura == null && errorHumedad == null && errorMantenimiento == null
+    }
+
+    fun validarMediciones(): Boolean {
+        val estado = _uiState.value
+        val errorMotivo = if (!estado.pruebaRealizada && estado.motivoNoRealizada.isBlank()) {
+            "Explica por qué no se realizó la prueba."
+        } else null
+        val errorMediciones =
+            if (estado.pruebaRealizada) obtenerErrorMediciones(estado) else null
+
+        _uiState.update {
+            it.copy(
+                errorMotivoNoRealizada = errorMotivo,
+                mensajeErrorMediciones = errorMediciones
+            )
+        }
+        return errorMotivo == null && errorMediciones == null
+    }
+
+    fun validarRecepcion(): Boolean {
+        val estado = _uiState.value
+        val errorRut = if (!ValidarRut.validarRut(estado.clienteRecibeRut)) {
+            if (estado.clienteRecibeRut.isBlank()) {
+                "Ingresa el RUT de quien recibe."
+            } else {
+                "El RUT debe incluir un dígito verificador válido, por ejemplo 12.345.678-5."
+            }
+        } else null
+        val errorNombre =
+            if (estado.clienteRecibeNombre.isBlank()) "Ingresa el nombre de quien recibe." else null
+        val errorCargo =
+            if (estado.clienteRecibeCargo.isBlank()) "Ingresa el cargo de quien recibe." else null
+
+        _uiState.update {
+            it.copy(
+                mensajeErrorRutClienteRecibe = errorRut,
+                errorRutClienteRecibe = errorRut != null,
+                mensajeErrorNombreClienteRecibe = errorNombre,
+                mensajeErrorCargoClienteRecibe = errorCargo
+            )
+        }
+        return errorRut == null && errorNombre == null && errorCargo == null
+    }
+
+    private fun obtenerErrorMediciones(estado: FormularioProtocoloUiState): String? {
+        fun esPositivo(valor: String): Boolean =
+            valor.replace(',', '.').toDoubleOrNull()?.let { it.isFinite() && it > 0 } == true
+
+        val aislamientoCompleto = estado.aislacionFilas.isNotEmpty() &&
+            estado.aislacionFilas.all {
+                esPositivo(it.lectura1Min) && esPositivo(it.lectura10Min)
+            }
+        val medicionesCompletas = when (estado.tipoEquipo) {
+            "Transformador" -> aislamientoCompleto &&
+                estado.ttrFilas.isNotEmpty() && estado.ttrFilas.all {
+                    it.relacionTeorica > 0 && esPositivo(it.relacionMedida)
+                } &&
+                estado.devanadoFilas.isNotEmpty() && estado.devanadoFilas.all {
+                    esPositivo(it.faseU) && esPositivo(it.faseV) && esPositivo(it.faseW) &&
+                        it.resultadoManual in setOf("APROBADO", "OBSERVADO", "RECHAZADO")
+                }
+            "Interruptor", "Celda MT" -> aislamientoCompleto &&
+                estado.contactosFilas.isNotEmpty() && estado.contactosFilas.all {
+                    it.valorMaximoPlacaUohm > 0 && esPositivo(it.valorMedidoUohm)
+                }
+            "Cable de poder" -> aislamientoCompleto
+            "Relé de protección" -> estado.releFilas.isNotEmpty() && estado.releFilas.all {
+                esPositivo(it.corrienteMedidaA) && it.operaCorrectamente != null &&
+                    (esPositivo(it.tiempoMedidoMs) || !it.operaCorrectamente)
+            }
+            else -> false
+        }
+        if (medicionesCompletas) return null
+
+        return when (estado.tipoEquipo) {
+            "Transformador" -> {
+                val aislacionFaltante = estado.aislacionFilas.firstOrNull {
+                    !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+                }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+                val ttrFaltante = estado.ttrFilas.firstOrNull {
+                    it.relacionTeorica <= 0 || !esPositivo(it.relacionMedida)
+                }?.let { "TTR ${it.fase}: ingresa una relación medida válida." }
+                val devanadoFaltante = estado.devanadoFilas.firstOrNull {
+                    !esPositivo(it.faseU) || !esPositivo(it.faseV) || !esPositivo(it.faseW) ||
+                        it.resultadoManual !in setOf("APROBADO", "OBSERVADO", "RECHAZADO")
+                }?.let {
+                    "Devanado ${it.devanado}: completa las fases U, V y W y selecciona su evaluación."
+                }
+                aislacionFaltante ?: ttrFaltante ?: devanadoFaltante
+            }
+            "Interruptor", "Celda MT" -> {
+                val aislacionFaltante = estado.aislacionFilas.firstOrNull {
+                    !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+                }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+                val contactoFaltante = estado.contactosFilas.firstOrNull {
+                    it.valorMaximoPlacaUohm <= 0 || !esPositivo(it.valorMedidoUohm)
+                }?.let { "${it.polo}: ingresa una resistencia de contacto mayor que cero." }
+                aislacionFaltante ?: contactoFaltante
+            }
+            "Cable de poder" -> estado.aislacionFilas.firstOrNull {
+                !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
+            }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
+            "Relé de protección" -> estado.releFilas.firstOrNull {
+                !esPositivo(it.corrienteMedidaA) || it.operaCorrectamente == null ||
+                    (it.operaCorrectamente && !esPositivo(it.tiempoMedidoMs))
+            }?.let {
+                "Relé ${it.funcion}: ingresa corriente y tiempo medidos, e indica si operó."
+            }
+            else -> null
+        } ?: "Revisa las mediciones requeridas para este tipo de equipo."
+    }
+
     fun onRegistrarProtocolo(
         idUsuarioActivo: Long,
         agregarAVisita: Boolean = false,
@@ -812,83 +951,20 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             return false
         }
 
-        if (!estado.pruebaRealizada) {
-            if (estado.motivoNoRealizada.isBlank()) {
-                _uiState.update {
-                    it.copy(
-                        errorMotivoNoRealizada = "Explica por qué no se realizó la prueba.",
-                        mensajeErrorFormulario = null
-                    )
-                }
-                return false
+        val errorMotivo = if (!estado.pruebaRealizada && estado.motivoNoRealizada.isBlank()) {
+            "Explica por qué no se realizó la prueba."
+        } else null
+        val errorMediciones =
+            if (estado.pruebaRealizada) obtenerErrorMediciones(estado) else null
+        if (errorMotivo != null || errorMediciones != null) {
+            _uiState.update {
+                it.copy(
+                    errorMotivoNoRealizada = errorMotivo,
+                    mensajeErrorMediciones = errorMediciones,
+                    mensajeErrorFormulario = null
+                )
             }
-        } else {
-            fun esPositivo(valor: String): Boolean =
-                valor.replace(',', '.').toDoubleOrNull()?.let { it > 0 } == true
-
-            val aislamientoCompleto = estado.aislacionFilas.isNotEmpty() &&
-                    estado.aislacionFilas.all { esPositivo(it.lectura1Min) && esPositivo(it.lectura10Min) }
-            val medicionesCompletas = when (estado.tipoEquipo) {
-                "Transformador" -> aislamientoCompleto &&
-                        estado.ttrFilas.isNotEmpty() && estado.ttrFilas.all {
-                            it.relacionTeorica > 0 && esPositivo(it.relacionMedida)
-                        } &&
-                        estado.devanadoFilas.isNotEmpty() && estado.devanadoFilas.all {
-                            esPositivo(it.faseU) && esPositivo(it.faseV) && esPositivo(it.faseW) &&
-                                    it.resultadoManual in setOf("APROBADO", "OBSERVADO", "RECHAZADO")
-                        }
-                "Interruptor", "Celda MT" -> aislamientoCompleto &&
-                        estado.contactosFilas.isNotEmpty() && estado.contactosFilas.all {
-                            it.valorMaximoPlacaUohm > 0 && esPositivo(it.valorMedidoUohm)
-                        }
-                "Cable de poder" -> aislamientoCompleto
-                "Relé de protección" -> estado.releFilas.isNotEmpty() && estado.releFilas.all {
-                    esPositivo(it.corrienteMedidaA) && it.operaCorrectamente != null &&
-                            (esPositivo(it.tiempoMedidoMs) || !it.operaCorrectamente)
-                }
-                else -> false
-            }
-
-            if (!medicionesCompletas) {
-                val detalleFaltante = when (estado.tipoEquipo) {
-                    "Transformador" -> {
-                        val aislacionFaltante = estado.aislacionFilas.firstOrNull {
-                            !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
-                        }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
-                        val ttrFaltante = estado.ttrFilas.firstOrNull {
-                            it.relacionTeorica <= 0 || !esPositivo(it.relacionMedida)
-                        }?.let { "TTR ${it.fase}: ingresa una relación medida válida." }
-                        val devanadoFaltante = estado.devanadoFilas.firstOrNull {
-                            !esPositivo(it.faseU) || !esPositivo(it.faseV) || !esPositivo(it.faseW) ||
-                                it.resultadoManual !in setOf("APROBADO", "OBSERVADO", "RECHAZADO")
-                        }?.let { "Devanado ${it.devanado}: completa las fases U, V y W y selecciona su evaluación." }
-                        aislacionFaltante ?: ttrFaltante ?: devanadoFaltante
-                    }
-                    "Interruptor", "Celda MT" -> {
-                        val aislacionFaltante = estado.aislacionFilas.firstOrNull {
-                            !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
-                        }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
-                        val contactoFaltante = estado.contactosFilas.firstOrNull {
-                            it.valorMaximoPlacaUohm <= 0 || !esPositivo(it.valorMedidoUohm)
-                        }?.let { "${it.polo}: ingresa una resistencia de contacto mayor que cero." }
-                        aislacionFaltante ?: contactoFaltante
-                    }
-                    "Cable de poder" -> estado.aislacionFilas.firstOrNull {
-                        !esPositivo(it.lectura1Min) || !esPositivo(it.lectura10Min)
-                    }?.let { "Aislación ${it.devanado}: completa las lecturas de 1 y 10 minutos." }
-                    "Relé de protección" -> estado.releFilas.firstOrNull {
-                        !esPositivo(it.corrienteMedidaA) || it.operaCorrectamente == null ||
-                            (it.operaCorrectamente && !esPositivo(it.tiempoMedidoMs))
-                    }?.let {
-                        "Relé ${it.funcion}: ingresa corriente y tiempo medidos, e indica si operó."
-                    }
-                    else -> null
-                } ?: "Revisa las mediciones requeridas para este tipo de equipo."
-                _uiState.update {
-                    it.copy(mensajeErrorMediciones = detalleFaltante)
-                }
-                return false
-            }
+            return false
         }
 
         val mediciones = buildList {

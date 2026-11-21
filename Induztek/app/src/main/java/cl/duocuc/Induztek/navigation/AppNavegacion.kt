@@ -46,7 +46,9 @@ import cl.duocuc.Induztek.ui.screens.ClienteScreen
 import cl.duocuc.Induztek.ui.screens.AsignacionesTecnicosScreen
 import cl.duocuc.Induztek.ui.screens.InicioScreen
 import cl.duocuc.Induztek.ui.screens.RecuperarClaveScreen
-import cl.duocuc.Induztek.ui.screens.RegistroScreen
+import cl.duocuc.Induztek.ui.screens.CrearCuentaScreen
+import cl.duocuc.Induztek.ui.screens.CambioClaveObligatorioScreen
+import cl.duocuc.Induztek.ui.screens.GestionInstalacionesScreen
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
@@ -63,17 +65,50 @@ fun AppNavegacion(
     val esCliente = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)
     val esJefeTecnico = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
     val esIngeniero = usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
+    val puedeCrearCuentas = esJefeTecnico || esIngeniero
     LaunchedEffect(usuarioActivo, rutaActual) {
-        if (usuarioActivo != null && rutaActual == Ruta.Login.ruta) {
-            navController.navigate(Ruta.Inicio.ruta) {
-                popUpTo(Ruta.Login.ruta) { inclusive = true }
+        when {
+            usuarioActivo == null &&
+                rutaActual != Ruta.Login.ruta &&
+                rutaActual != Ruta.RecuperarClave.ruta -> {
+                navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }
+            }
+            usuarioActivo?.debeCambiarContrasena == true &&
+                rutaActual != Ruta.CambioClaveObligatorio.ruta -> {
+                navController.navigate(Ruta.CambioClaveObligatorio.ruta) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && usuarioActivo?.debeCambiarContrasena == false &&
+                rutaActual == Ruta.CambioClaveObligatorio.ruta -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.CambioClaveObligatorio.ruta) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && rutaActual == Ruta.Login.ruta -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.Login.ruta) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && rutaActual == Ruta.CrearCuenta.ruta && !puedeCrearCuentas -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.CrearCuenta.ruta) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && rutaActual == Ruta.GestionInstalaciones.ruta &&
+                !puedeCrearCuentas -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.GestionInstalaciones.ruta) { inclusive = true }
+                }
             }
         }
     }
 
     val mostrarBarraInferior = usuarioActivo != null &&
             rutaActual != Ruta.Login.ruta &&
-            rutaActual != Ruta.Registro.ruta &&
+            rutaActual != Ruta.CrearCuenta.ruta &&
+            rutaActual != Ruta.GestionInstalaciones.ruta &&
+            rutaActual != Ruta.CambioClaveObligatorio.ruta &&
             rutaActual != Ruta.RecuperarClave.ruta &&
             rutaActual?.startsWith("comprobante") != true
 
@@ -243,16 +278,32 @@ fun AppNavegacion(
             composable(Ruta.Login.ruta) {
                 LoginScreen(
                     viewModel = usuariosViewModel,
-                    onIrARegistro = { navController.navigate(Ruta.Registro.ruta) },
                     onIrARecuperarClave = { navController.navigate(Ruta.RecuperarClave.ruta) }
                 )
             }
 
-            composable(Ruta.Registro.ruta) {
-                RegistroScreen(
+            composable(Ruta.CrearCuenta.ruta) {
+                CrearCuentaScreen(
                     viewModel = usuariosViewModel,
-                    onRegistroExitoso = { navController.navigate(Ruta.Login.ruta) { popUpTo(Ruta.Registro.ruta) { inclusive = true } } },
-                    onVolverLogin = { navController.popBackStack() }
+                    usuarioActivo = usuarioActivo,
+                    onRegistroExitoso = {
+                        navController.navigate(Ruta.Inicio.ruta) {
+                            popUpTo(Ruta.CrearCuenta.ruta) { inclusive = true }
+                        }
+                    },
+                    onVolver = { navController.popBackStack() }
+                )
+            }
+
+            composable(Ruta.CambioClaveObligatorio.ruta) {
+                CambioClaveObligatorioScreen(
+                    viewModel = usuariosViewModel,
+                    usuarioActivo = usuarioActivo,
+                    onClaveCambiada = {
+                        navController.navigate(Ruta.Inicio.ruta) {
+                            popUpTo(Ruta.CambioClaveObligatorio.ruta) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -271,7 +322,19 @@ fun AppNavegacion(
                     onAbrirPortalCliente = { navController.navigate(Ruta.VistaCliente.ruta) },
                     onAbrirProtocolo = { navController.navigate(Ruta.Formulario.ruta) },
                     onAbrirHistorial = { navController.navigate(Ruta.Historial.crear(0L)) },
-                    onAbrirAsignaciones = { navController.navigate(Ruta.Asignaciones.ruta) }
+                    onAbrirAsignaciones = { navController.navigate(Ruta.Asignaciones.ruta) },
+                    onCrearCuenta = { navController.navigate(Ruta.CrearCuenta.ruta) },
+                    onGestionarInstalaciones = {
+                        navController.navigate(Ruta.GestionInstalaciones.ruta)
+                    }
+                )
+            }
+
+            composable(Ruta.GestionInstalaciones.ruta) {
+                GestionInstalacionesScreen(
+                    viewModel = protocoloViewModel,
+                    usuarioActivo = usuarioActivo,
+                    onVolver = { navController.popBackStack() }
                 )
             }
 
@@ -327,11 +390,6 @@ fun AppNavegacion(
                             navController.navigate(Ruta.Inicio.ruta) {
                                 launchSingleTop = true
                             }
-                        }
-                    },
-                    onVolverInicio = {
-                        navController.navigate(Ruta.Inicio.ruta) {
-                            popUpTo(Ruta.Inicio.ruta) { inclusive = true }
                         }
                     }
                 )

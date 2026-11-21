@@ -9,5 +9,6 @@ data class Usuario(
     val rolCodigo: String,
     val idEmpresaCliente: Long? = null,
     val activo: Boolean = true,
-    val avatar: ByteArray? = null
+    val avatar: ByteArray? = null,
+    val debeCambiarContrasena: Boolean = false
 )

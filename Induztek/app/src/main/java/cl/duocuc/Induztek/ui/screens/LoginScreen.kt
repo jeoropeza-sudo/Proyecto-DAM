@@ -57,7 +57,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     viewModel: UsuariosViewModel,
-    onIrARegistro: () -> Unit = {},
     onIrARecuperarClave: () -> Unit = {}
 ) {
     var correo by remember { mutableStateOf("") }
@@ -226,17 +225,11 @@ fun LoginScreen(
                             )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        TextButton(
+                            onClick = onIrARecuperarClave,
+                            modifier = Modifier.align(Alignment.End)
                         ) {
-                            TextButton(onClick = onIrARecuperarClave) {
-                                Text("Recuperar clave", color = MaterialTheme.colorScheme.onSurface)
-                            }
-                            TextButton(onClick = onIrARegistro) {
-                                Text("Crear cuenta", color = MaterialTheme.colorScheme.onSurface)
-                            }
+                            Text("Recuperar clave", color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
