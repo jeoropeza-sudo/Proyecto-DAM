@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -26,6 +27,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +79,11 @@ fun CrearCuentaScreen(
     var nombreInstalacion by remember { mutableStateOf("") }
     var errores by remember { mutableStateOf(emptyMap<String, String>()) }
     var resultado by remember { mutableStateOf<CrearCuentaResultado?>(null) }
+    val estadoAltaRemota by viewModel.altaRemota.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.limpiarEstadoAltaRemota()
+    }
 
     val esAdmin = usuarioActivo?.rolCodigo in setOf(
         Rol.CODIGO_INGENIERO,
@@ -84,31 +92,43 @@ fun CrearCuentaScreen(
     val esCliente = rol == Rol.CODIGO_CLIENTE
 
     Scaffold { padding ->
-        resultado?.takeIf { it.exitosa }?.let { alta ->
+        val alta = resultado
+        if (alta != null && alta.exitosa) {
             AlertDialog(
                 onDismissRequest = {},
                 title = { Text("Cuenta creada") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Entrega esta contraseña temporal al usuario de forma segura:")
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Text(
-                                alta.contrasenaTemporal.orEmpty(),
-                                modifier = Modifier.padding(12.dp),
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
                         Text(
-                            "El usuario deberá cambiarla al iniciar sesión. El envío automático y la recuperación por correo requieren integrar los microservicios."
+                            "Las credenciales de acceso se generan y envían por correo cuando el servidor confirma el alta."
                         )
+                        if (estadoAltaRemota.cargando) {
+                            Text("Sincronizando la cuenta con el servidor.")
+                            CircularProgressIndicator()
+                        }
+                        val mensajeAlta = estadoAltaRemota.mensaje
+                        if (!mensajeAlta.isNullOrBlank()) {
+                            Text(mensajeAlta)
+                        }
+                        val errorAlta = estadoAltaRemota.error
+                        if (!errorAlta.isNullOrBlank()) {
+                            Text(
+                                errorAlta,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(
+                                onClick = { viewModel.reintentarAltaRemota() }
+                            ) {
+                                Text("Reintentar sincronización")
+                            }
+                        }
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = onRegistroExitoso) { Text("Volver al inicio") }
+                    TextButton(onClick = {
+                        viewModel.limpiarEstadoAltaRemota()
+                        onRegistroExitoso()
+                    }) { Text("Volver al inicio") }
                 }
             )
         }
@@ -156,7 +176,7 @@ fun CrearCuentaScreen(
                 Text("Solo Ingeniería o Jefatura Técnica pueden crear cuentas.")
             } else if (!pasoEmpresa) {
                 CampoAdmin("RUT personal *", rut, errores["rut"], KeyboardType.Text) { rut = it }
-                CampoAdmin("Nombre completo *", nombre, errores["nombre"]) { nombre = it }
+                CampoAdmin("Nombre y apellido *", nombre, errores["nombre"]) { nombre = it }
                 CampoAdmin("Correo electrónico *", correo, errores["correo"], KeyboardType.Email) { correo = it }
                 CampoAdmin("Teléfono", telefono, errores["telefono"], KeyboardType.Phone) { telefono = it }
 
@@ -387,13 +407,17 @@ private fun validarCuenta(
         rut.isBlank() -> put("rut", "Ingresa el RUT personal.")
         !ValidarRut.validarRut(rut) -> put("rut", "Ingresa un RUT válido.")
     }
-    if (nombre.isBlank()) put("nombre", "Ingresa el nombre completo.")
+    if (nombre.trim().split(Regex("\\s+")).size < 2) {
+        put("nombre", "Ingresa al menos un nombre y un apellido.")
+    }
     when {
         correo.isBlank() -> put("correo", "Ingresa un correo electrónico.")
         !Patterns.EMAIL_ADDRESS.matcher(correo.trim()).matches() ->
             put("correo", "Ingresa un correo válido.")
     }
-    if (telefono.isNotBlank() && !ValidarTelefonoChile.esValido(telefono)) {
+    if (telefono.isBlank()) {
+        put("telefono", "Ingresa un teléfono móvil.")
+    } else if (!ValidarTelefonoChile.esValido(telefono)) {
         put("telefono", "Ingresa un teléfono móvil chileno válido.")
     }
 }

@@ -35,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
@@ -65,10 +66,10 @@ fun LoginScreen(
     var accesosPruebaExpandidos by remember { mutableStateOf(false) }
     var errorCorreo by remember { mutableStateOf<String?>(null) }
     var errorClave by remember { mutableStateOf<String?>(null) }
+    val autenticando by viewModel.autenticando.collectAsState()
+    val errorAuth by viewModel.errorAuth.collectAsState()
 
     val focusManager = LocalFocusManager.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val autenticar = {
         focusManager.clearFocus()
         when {
@@ -83,17 +84,12 @@ fun LoginScreen(
             else -> {
                 errorCorreo = null
                 errorClave = null
-                if (viewModel.iniciarSesion(correo, clave) == null) {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("No se pudo iniciar sesión. Revisa el correo y la contraseña.")
-                    }
-                }
+                viewModel.iniciarSesion(correo, clave)
             }
         }
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = androidx.compose.ui.graphics.Color.Transparent
     ) { padding ->
         Box(
@@ -157,7 +153,9 @@ fun LoginScreen(
                             },
                             isError = errorCorreo != null,
                             supportingText = {
-                                errorCorreo?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                if (errorCorreo != null) {
+                                    Text(errorCorreo.orEmpty(), color = MaterialTheme.colorScheme.error)
+                                }
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -201,7 +199,9 @@ fun LoginScreen(
                             },
                             isError = errorClave != null,
                             supportingText = {
-                                errorClave?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                if (errorClave != null) {
+                                    Text(errorClave.orEmpty(), color = MaterialTheme.colorScheme.error)
+                                }
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -214,14 +214,23 @@ fun LoginScreen(
 
                         Button(
                             onClick = { autenticar() },
+                            enabled = !autenticando,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp)
                         ) {
                             Text(
-                                text = "Ingresar",
+                                text = if (autenticando) "Conectando..." else "Ingresar",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        if (errorAuth != null) {
+                            Text(
+                                text = errorAuth.orEmpty(),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
 
