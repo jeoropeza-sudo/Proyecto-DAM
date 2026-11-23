@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -34,7 +35,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -65,6 +66,7 @@ import cl.duocuc.Induztek.data.ConvertidorImagen
 import cl.duocuc.Induztek.model.Usuario
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.ValidarContrasena
+import cl.duocuc.Induztek.R
 import cl.duocuc.Induztek.ui.components.BotonPrincipal
 import cl.duocuc.Induztek.ui.components.BotonSecundario
 import cl.duocuc.Induztek.ui.components.MarcaCompacta
@@ -219,28 +221,45 @@ fun PerfilScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .border(3.dp, MaterialTheme.colorScheme.secondary, CircleShape)
-                    .clickable { mostrarOpcionesFoto = true },
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(240.dp)
             ) {
+                Image(
+                    painter = painterResource(R.drawable.portada_perfil),
+                    contentDescription = stringResource(R.string.cd_portada),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                    contentScale = ContentScale.Crop
+                )
+
                 val bitmapFoto = usuarioActivo?.avatar?.let { ConvertidorImagen.aBitmap(it) }
-                if (bitmapFoto != null) {
-                    Image(
-                        bitmap = bitmapFoto.asImageBitmap(),
-                        contentDescription = "Foto Perfil",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        painter = painterResource(android.R.drawable.ic_menu_camera),
-                        contentDescription = "Cámara",
-                        modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .border(3.dp, MaterialTheme.colorScheme.secondary, CircleShape)
+                        .clickable { mostrarOpcionesFoto = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (bitmapFoto != null) {
+                        Image(
+                            bitmap = bitmapFoto.asImageBitmap(),
+                            contentDescription = stringResource(R.string.cd_avatar),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(R.drawable.avatar_usuario),
+                            contentDescription = stringResource(R.string.cd_avatar),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
 

@@ -1,7 +1,6 @@
 package cl.duocuc.Induztek.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,13 +34,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import cl.duocuc.Induztek.R
+import cl.duocuc.Induztek.ui.components.ImagenEncabezado
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
-import cl.duocuc.Induztek.ui.components.LogoInduztek
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
 
 @Composable
@@ -82,24 +83,13 @@ fun InicioScreen(
         ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(224.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary,
-                            RoundedCornerShape(24.dp)
-                        )
-                        .padding(8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LogoInduztek(
-                        sobreFondoOscuro = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(208.dp)
-                    )
-                }
+                ImagenEncabezado(
+                    imagen = R.drawable.banner_registro,
+                    descripcion = stringResource(R.string.cd_banner),
+                    titulo = stringResource(R.string.banner_titulo),
+                    subtitulo = stringResource(R.string.banner_subtitulo),
+                    modifier = Modifier.clip(RoundedCornerShape(24.dp))
+                )
                 Text(
                     "Hola, ${usuarioActivo?.nombre.orEmpty()}",
                     style = MaterialTheme.typography.headlineSmall,
