@@ -8,14 +8,6 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import okhttp3.MultipartBody
-import okhttp3.ResponseBody
-import retrofit2.Response
-import retrofit2.http.GET
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.Part
-import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
 data class MicroserviciosApi(
@@ -27,18 +19,6 @@ data class MicroserviciosApi(
     val instrumentos: InstrumentosApi,
     val avatar: AvatarApi
 )
-
-interface AvatarApi {
-    @Multipart
-    @POST("api/usuarios/{id}/avatar")
-    suspend fun subir(
-        @Path("id") id: Long,
-        @Part archivo: MultipartBody.Part
-    ): Response<UsuarioResponse>
-
-    @GET("api/usuarios/{id}/avatar")
-    suspend fun obtener(@Path("id") id: Long): Response<ResponseBody>
-}
 
 object RetrofitClient {
     @Volatile
@@ -67,11 +47,7 @@ object RetrofitClient {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
-            .client(cliente)
-            .addConverterFactory(GsonConverterFactory.create(Gson()))
-            .build()
+        val retrofit = crearRetrofit(BuildConfig.API_BASE_URL, cliente)
 
         return MicroserviciosApi(
             auth = retrofit.create(AuthApi::class.java),
@@ -83,4 +59,11 @@ object RetrofitClient {
             avatar = retrofit.create(AvatarApi::class.java)
         ).also { servicios = it }
     }
+
+    private fun crearRetrofit(urlBase: String, cliente: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(urlBase)
+            .client(cliente)
+            .addConverterFactory(GsonConverterFactory.create(Gson()))
+            .build()
 }

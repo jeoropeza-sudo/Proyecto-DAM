@@ -265,13 +265,14 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
 
-            private fun normalizarFechaInstrumento(fecha: String): String {
-                val fechaIso = fecha.take(10)
-                return runCatching {
-                    LocalDate.parse(fechaIso).format(DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT))
-                }.getOrDefault(fecha)
-            }
         }
+    }
+
+    private fun normalizarFechaInstrumento(fecha: String): String {
+        val fechaIso = fecha.take(10)
+        return runCatching {
+            LocalDate.parse(fechaIso).format(DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT))
+        }.getOrDefault(fecha)
     }
 
     private fun cargarEquiposRemotos(idInstalacion: Long, usuario: Usuario?) {
