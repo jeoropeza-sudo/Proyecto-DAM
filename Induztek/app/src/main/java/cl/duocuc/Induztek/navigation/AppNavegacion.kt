@@ -51,9 +51,7 @@ import cl.duocuc.Induztek.ui.screens.CrearCuentaScreen
 import cl.duocuc.Induztek.ui.screens.CambioClaveObligatorioScreen
 import cl.duocuc.Induztek.ui.screens.GestionInstalacionesScreen
 import cl.duocuc.Induztek.ui.screens.GestionInstrumentosScreen
-import cl.duocuc.Induztek.ui.screens.GestionSincronizacionScreen
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
-import cl.duocuc.Induztek.viewmodel.EstadoSincronizacionViewModel
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @Composable
@@ -109,12 +107,6 @@ fun AppNavegacion(
                 !puedeCrearCuentas -> {
                 navController.navigate(Ruta.Inicio.ruta) {
                     popUpTo(Ruta.GestionInstrumentos.ruta) { inclusive = true }
-                }
-            }
-            usuarioActivo != null && rutaActual == Ruta.Sincronizacion.ruta &&
-                !puedeCrearCuentas -> {
-                navController.navigate(Ruta.Inicio.ruta) {
-                    popUpTo(Ruta.Sincronizacion.ruta) { inclusive = true }
                 }
             }
         }
@@ -363,9 +355,6 @@ fun AppNavegacion(
                     onCrearCuenta = { navController.navigate(Ruta.CrearCuenta.ruta) },
                     onGestionarInstalaciones = {
                         navController.navigate(Ruta.GestionInstalaciones.ruta)
-                    },
-                    onGestionarSincronizacion = {
-                        navController.navigate(Ruta.Sincronizacion.ruta)
                     }
                 )
             }
@@ -380,20 +369,12 @@ fun AppNavegacion(
                             popUpTo(Ruta.Inicio.ruta) { inclusive = false }
                             launchSingleTop = true
                         }
-
-                        composable(Ruta.GestionInstrumentos.ruta) {
-                            GestionInstrumentosScreen(usuarioActivo = usuarioActivo)
-                        }
-
-                        composable(Ruta.Sincronizacion.ruta) {
-                            val sincronizacionViewModel: EstadoSincronizacionViewModel = viewModel()
-                            GestionSincronizacionScreen(
-                                viewModel = sincronizacionViewModel,
-                                onVolver = { navController.popBackStack() }
-                            )
-                        }
                     }
                 )
+            }
+
+            composable(Ruta.GestionInstrumentos.ruta) {
+                GestionInstrumentosScreen(usuarioActivo = usuarioActivo)
             }
 
             composable(Ruta.Formulario.ruta) {
@@ -456,10 +437,18 @@ fun AppNavegacion(
             composable(Ruta.Perfil.ruta) {
                 PerfilScreen(
                     usuarioActivo = usuarioActivo,
-                    onCambiarFotoCamara = { foto -> usuariosViewModel.cambiarAvatarDesdeCamara(foto) },
-                    onCambiarFotoGaleria = { uri -> usuariosViewModel.cambiarAvatarDesdeGaleria(uri) },
-                    onCambiarClave = { claveActual, claveNueva -> usuariosViewModel.cambiarClave(claveActual, claveNueva) },
-                    onActualizarPerfil = { nombre, telefono -> usuariosViewModel.actualizarPerfil(nombre, telefono) },
+                    onCambiarFotoCamara = { foto, alCompletar ->
+                        usuariosViewModel.cambiarAvatarDesdeCamara(foto, alCompletar)
+                    },
+                    onCambiarFotoGaleria = { uri, alCompletar ->
+                        usuariosViewModel.cambiarAvatarDesdeGaleria(uri, alCompletar)
+                    },
+                    onCambiarClave = { claveActual, claveNueva, alCompletar ->
+                        usuariosViewModel.cambiarClave(claveActual, claveNueva, alCompletar)
+                    },
+                    onActualizarPerfil = { nombre, telefono, alCompletar ->
+                        usuariosViewModel.actualizarPerfil(nombre, telefono, alCompletar)
+                    },
                     onCerrarSesion = {
                         usuariosViewModel.cerrarSesion()
                         navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }

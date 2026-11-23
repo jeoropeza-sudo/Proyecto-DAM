@@ -6,21 +6,19 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duocuc.Induztek.data.ConvertidorImagen
-import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.data.SesionPreferencias
+import cl.duocuc.Induztek.data.repository.AvatarRepository
+import cl.duocuc.Induztek.data.repository.UsuarioRepository
 import cl.duocuc.Induztek.data.remote.ApiRequestException
-import cl.duocuc.Induztek.data.remote.InduztekRepository
 import com.google.gson.JsonObject
 import cl.duocuc.Induztek.model.CrearCuentaResultado
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
-import cl.duocuc.Induztek.model.ValidarContrasena
 import cl.duocuc.Induztek.model.ValidarTelefonoChile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.security.SecureRandom
 
 data class RecuperacionUiState(
     val codigoSolicitado: Boolean = false,
@@ -32,17 +30,15 @@ data class RecuperacionUiState(
 
 data class AltaRemotaUiState(
     val cargando: Boolean = false,
-    val pendiente: Boolean = false,
     val mensaje: String? = null,
     val error: String? = null
 )
 
 class UsuariosViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = InduztekDbHelper(application)
     private val sesionPreferencias = SesionPreferencias(application)
-    private val repositorio = InduztekRepository(application)
-    private val secureRandom = SecureRandom()
+    private val repositorioUsuarios = UsuarioRepository(application)
+    private val repositorioAvatar = AvatarRepository(application)
 
     private val _usuarioActual = MutableStateFlow<Usuario?>(null)
     val usuarioActual: StateFlow<Usuario?> = _usuarioActual.asStateFlow()
@@ -58,34 +54,30 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
 
     private val _altaRemota = MutableStateFlow(AltaRemotaUiState())
     val altaRemota = _altaRemota.asStateFlow()
-    private var accionReintentarAlta: (() -> Unit)? = null
 
     init {
         val idUsuario = sesionPreferencias.leer()
         val token = sesionPreferencias.leerToken()
-        val usuarioGuardado = sesionPreferencias.leerUsuario()
         if (idUsuario > 0 && !token.isNullOrBlank()) {
-            _usuarioActual.value = usuarioGuardado
             viewModelScope.launch {
                 try {
-                    val usuarioRemoto = repositorio.usuario(idUsuario)
-                    val usuario = convertirUsuario(usuarioRemoto)
+                    val usuarioRemoto = repositorioUsuarios.usuario(idUsuario)
+                    val usuario = convertirUsuario(usuarioRemoto).copy(
+                        avatar = repositorioAvatar.obtener(idUsuario)
+                    )
                     if (usuario.activo) {
                         _usuarioActual.value = usuario
-                        sesionPreferencias.guardarUsuario(usuario)
                     } else {
                         cerrarSesion()
                     }
                 } catch (error: ApiRequestException) {
                     if (error.statusCode == 401) {
                         cerrarSesion()
-                    } else if (usuarioGuardado == null) {
+                    } else {
                         _errorAuth.value = error.message
                     }
                 } catch (error: java.io.IOException) {
-                    if (usuarioGuardado == null) {
-                        _errorAuth.value = "No se pudo validar la sesión sin conexión."
-                    }
+                    _errorAuth.value = "No se pudo validar la sesión con el servidor."
                 }
             }
         } else {
@@ -107,10 +99,12 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         _errorAuth.value = null
         viewModelScope.launch {
             try {
-                val respuesta = repositorio.iniciarSesion(correo, clave)
+                val respuesta = repositorioUsuarios.iniciarSesion(correo, clave)
                 sesionPreferencias.guardar(respuesta.usuarioId)
                 sesionPreferencias.guardarToken(respuesta.token)
-                val perfil = convertirUsuario(repositorio.usuario(respuesta.usuarioId))
+                val perfil = convertirUsuario(repositorioUsuarios.usuario(respuesta.usuarioId)).copy(
+                    avatar = repositorioAvatar.obtener(respuesta.usuarioId)
+                )
                 if (!perfil.activo) {
                     sesionPreferencias.borrar()
                     _errorAuth.value = "La cuenta está inactiva. Contacta al administrador."
@@ -119,7 +113,6 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
                 val usuario = perfil.copy(
                     debeCambiarContrasena = respuesta.primerIngreso || perfil.debeCambiarContrasena
                 )
-                sesionPreferencias.guardarUsuario(usuario)
                 _usuarioActual.value = usuario
             } catch (error: ApiRequestException) {
                 sesionPreferencias.borrar()
@@ -151,7 +144,7 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         _recuperacion.value = RecuperacionUiState(cargando = true)
         viewModelScope.launch {
             try {
-                repositorio.solicitarCodigo(correo)
+                repositorioUsuarios.solicitarCodigo(correo)
                 _recuperacion.value = RecuperacionUiState(
                     codigoSolicitado = true,
                     mensaje = "Si el correo está registrado, recibirás un código de recuperación válido por 15 minutos."
@@ -174,7 +167,7 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         _recuperacion.value = _recuperacion.value.copy(cargando = true, error = null)
         viewModelScope.launch {
             try {
-                repositorio.restablecerClave(correo, codigo, claveNueva)
+                repositorioUsuarios.restablecerClave(correo, codigo, claveNueva)
                 _recuperacion.value = RecuperacionUiState(
                     codigoSolicitado = true,
                     claveActualizada = true,
@@ -225,35 +218,6 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    fun registrar(
-        rut: String,
-        nombre: String,
-        correo: String,
-        tel: String,
-        clave: String,
-        rol: String,
-        preg: String,
-        resp: String
-    ): Boolean {
-        val telefonoNormalizado = if (tel.isBlank()) "" else ValidarTelefonoChile.normalizar(tel) ?: return false
-        val id = db.registrarNuevoUsuario(
-            rut = rut,
-            nombre = nombre,
-            correo = correo,
-            telefono = telefonoNormalizado,
-            clavePlana = clave,
-            rolCodigo = rol,
-            pregunta = preg,
-            respuestaPlana = resp
-        )
-        if (id > 0) {
-            _usuarioActual.value = null
-            sesionPreferencias.borrar()
-            return true
-        }
-        return false
-    }
-
     fun crearCuentaAdministrativa(
         actor: Usuario?,
         rut: String,
@@ -279,67 +243,44 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
             )
         }
 
-        val passwordTemporal = generarContrasenaTemporal()
-        val resultado = db.crearCuentaAdministrativa(
-            actorId = actor.idUsuario,
-            rut = rut,
-            nombre = nombre,
-            correo = correo,
-            telefono = telefono,
-            rolCodigo = rol,
-            contrasenaTemporal = passwordTemporal,
-            rutEmpresa = rutEmpresa,
-            razonSocial = razonSocial,
-            giro = giro,
-            direccion = direccion,
-            contactoNombre = contactoNombre,
-            contactoCorreo = contactoCorreo,
-            contactoTelefono = contactoTelefono,
-            nombreInstalacion = nombreInstalacion
-        )
-        if (resultado.exitosa &&
-            !ValidarContrasena.esSegura(resultado.contrasenaTemporal.orEmpty())
-        ) {
-            error("La contraseña temporal generada no cumple la política de seguridad.")
-        }
-        if (resultado.exitosa) {
-            sincronizarCuentaAdministrativa(
-                actor,
-                resultado.idUsuario ?: 0L,
-                rut,
-                nombre,
-                correo,
-                telefono,
-                rol,
-                rutEmpresa,
-                razonSocial,
-                giro,
-                direccion,
-                contactoNombre,
-                contactoCorreo,
-                contactoTelefono,
-                nombreInstalacion
+        val telefonoNormalizado = ValidarTelefonoChile.normalizar(telefono)
+            ?: return CrearCuentaResultado(
+                campoError = "telefono",
+                mensajeError = "Ingresa un teléfono móvil chileno válido."
+            )
+        if (rut.isBlank() || nombre.trim().split(Regex("\\s+")).size < 2 || correo.isBlank()) {
+            return CrearCuentaResultado(
+                campoError = "general",
+                mensajeError = "Completa los datos obligatorios de la cuenta."
             )
         }
-        return resultado
+
+        _altaRemota.value = AltaRemotaUiState(cargando = true)
+        crearCuentaEnServidor(
+            actor,
+            rut,
+            nombre,
+            correo,
+            telefonoNormalizado,
+            rol,
+            rutEmpresa,
+            razonSocial,
+            giro,
+            direccion,
+            contactoNombre,
+            contactoCorreo,
+            contactoTelefono,
+            nombreInstalacion
+        )
+        return CrearCuentaResultado(aceptada = true)
     }
 
     fun limpiarEstadoAltaRemota() {
-        accionReintentarAlta = null
         _altaRemota.value = AltaRemotaUiState()
     }
 
-    fun reintentarAltaRemota() {
-        val accion = accionReintentarAlta
-        if (accion == null) {
-            return
-        }
-        accion()
-    }
-
-    private fun sincronizarCuentaAdministrativa(
+    private fun crearCuentaEnServidor(
         actor: Usuario,
-        idUsuarioLocal: Long,
         rut: String,
         nombreCompleto: String,
         correo: String,
@@ -354,65 +295,21 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         contactoTelefono: String?,
         nombreInstalacion: String?
     ) {
-        accionReintentarAlta = {
-            sincronizarCuentaAdministrativa(
-                actor,
-                idUsuarioLocal,
-                rut,
-                nombreCompleto,
-                correo,
-                telefono,
-                rol,
-                rutEmpresa,
-                razonSocial,
-                giro,
-                direccion,
-                contactoNombre,
-                contactoCorreo,
-                contactoTelefono,
-                nombreInstalacion
-            )
-        }
         _altaRemota.value = AltaRemotaUiState(cargando = true)
         viewModelScope.launch {
             try {
-                val usuarioLocal = db.buscarPorIdUsuario(idUsuarioLocal)
-                var idEmpresaLocal = usuarioLocal?.idEmpresaCliente
-                if (idEmpresaLocal == null) {
-                    idEmpresaLocal = actor.idEmpresaCliente
-                }
-                if (idEmpresaLocal == null) {
-                    throw ApiRequestException(
-                        400,
-                        "El microservicio requiere una empresa asociada para crear esta cuenta."
-                    )
+                var empresaRemota = repositorioUsuarios.empresas().firstOrNull { empresa ->
+                    val rutRemoto = leerTextoJson(empresa, "rut")
+                    val idRemoto = leerLongJson(empresa, "idEmpresa", "id")
+                    (!rutEmpresa.isNullOrBlank() && rutRemoto.equals(rutEmpresa, ignoreCase = true)) ||
+                        (rutEmpresa.isNullOrBlank() && idRemoto == actor.idEmpresaCliente)
                 }
 
-                var empresaRemota = repositorio.leerEmpresaCacheada(idEmpresaLocal)
-                if (empresaRemota == null) {
-                    val empresasRemotas = repositorio.empresas()
-                    for (empresa in empresasRemotas) {
-                        val rutRemoto = leerTextoJson(empresa, "rut")
-                        var idRemoto = leerLongJson(empresa, "idEmpresa")
-                        if (idRemoto < 0) {
-                            idRemoto = leerLongJson(empresa, "id")
-                        }
-                        if ((!rutEmpresa.isNullOrBlank() && rutRemoto == rutEmpresa) ||
-                            (rutEmpresa.isNullOrBlank() && idRemoto == idEmpresaLocal)
-                        ) {
-                            empresaRemota = empresa
-                            break
-                        }
-                    }
-                }
-
-                if (empresaRemota != null) {
-                    repositorio.vincularEmpresaCacheada(idEmpresaLocal, empresaRemota)
-                } else if (rol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
+                if (empresaRemota == null && rol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
                     if (razonSocial.isNullOrBlank() || rutEmpresa.isNullOrBlank()) {
                         throw ApiRequestException(
                             400,
-                            "Completa la razón social y el RUT de la empresa para sincronizar la cuenta."
+                            "Completa la razón social y el RUT de la empresa para registrarla."
                         )
                     }
                     val solicitudEmpresa = JsonObject()
@@ -423,12 +320,18 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
                     solicitudEmpresa.addProperty("contactoNombre", contactoNombre)
                     solicitudEmpresa.addProperty("contactoCorreo", contactoCorreo)
                     solicitudEmpresa.addProperty("contactoTelefono", contactoTelefono)
-                    repositorio.crearEmpresa(solicitudEmpresa, idEmpresaLocal)
-                } else {
+                    empresaRemota = repositorioUsuarios.crearEmpresa(solicitudEmpresa)
+                } else if (empresaRemota == null) {
                     throw ApiRequestException(
                         404,
                         "La empresa de la cuenta no existe en el servidor. Registra primero la empresa del usuario."
                     )
+                }
+                val empresaConfirmada = empresaRemota
+                    ?: throw ApiRequestException(404, "La empresa no está registrada en el servidor.")
+                val idEmpresaRemota = leerLongJson(empresaConfirmada, "idEmpresa", "id")
+                if (idEmpresaRemota <= 0L) {
+                    throw ApiRequestException(502, "El servidor no devolvió el identificador de la empresa.")
                 }
 
                 val nombres = nombreCompleto.trim().split(Regex("\\s+"), limit = 2)
@@ -452,54 +355,40 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
                 solicitudUsuario.addProperty("rut", rut)
                 solicitudUsuario.addProperty("correo", correo.trim())
                 solicitudUsuario.addProperty("telefono", telefono.trim())
-                solicitudUsuario.addProperty("empresaId", idEmpresaLocal)
+                solicitudUsuario.addProperty("empresaId", idEmpresaRemota)
                 solicitudUsuario.addProperty("rolId", rolRemoto)
-                val resultadoUsuario = repositorio.crearUsuario(
-                    solicitudUsuario,
-                    idEmpresaLocal,
-                    idUsuarioLocal
-                )
-                var altaPendiente = resultadoUsuario.enCola
+                val respuestaUsuario = repositorioUsuarios.crearUsuario(solicitudUsuario)
                 if (rol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) &&
                     !nombreInstalacion.isNullOrBlank()
                 ) {
+                    val usuarioRemoto = respuestaUsuario.getAsJsonObject("usuario")
+                    val idUsuarioRemoto = usuarioRemoto?.let { leerLongJson(it, "id") } ?: -1L
+                    if (idUsuarioRemoto <= 0L) {
+                        throw ApiRequestException(502, "El servidor no devolvió el identificador del usuario.")
+                    }
                     val solicitudInstalacion = JsonObject()
-                    solicitudInstalacion.addProperty("idEmpresaLocal", idEmpresaLocal)
-                    solicitudInstalacion.addProperty("idUsuarioClienteLocal", idUsuarioLocal)
+                    solicitudInstalacion.addProperty("idEmpresa", idEmpresaRemota)
+                    solicitudInstalacion.addProperty("idUsuarioCliente", idUsuarioRemoto)
                     solicitudInstalacion.addProperty("nombre", nombreInstalacion.trim())
                     solicitudInstalacion.addProperty("activa", true)
-                    val instalacionLocal = db.listarInstalacionesDeCuentaCliente(idUsuarioLocal)
-                        .firstOrNull {
-                            it.nombre.equals(nombreInstalacion.trim(), ignoreCase = true)
-                        }
-                    val resultadoInstalacion = repositorio.crearInstalacion(
-                        solicitudInstalacion,
-                        instalacionLocal?.idInstalacion
-                    )
-                    if (resultadoInstalacion.enCola) {
-                        altaPendiente = true
+                    repositorioUsuarios.crearInstalacion(solicitudInstalacion)
+                }
+                _altaRemota.value = AltaRemotaUiState(
+                    mensaje = if (rol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
+                        "Cuenta e instalación creadas en el servidor. El microservicio enviará las credenciales temporales al correo del usuario."
+                    } else {
+                        "Cuenta creada en el servidor. El microservicio enviará las credenciales temporales al correo del usuario."
                     }
-                }
-                _altaRemota.value = if (altaPendiente) {
-                    AltaRemotaUiState(
-                        pendiente = true,
-                        mensaje = "Alta guardada en la cola; la empresa, la cuenta y la instalación se enviarán al recuperar conexión."
-                    )
-                } else {
-                    AltaRemotaUiState(
-                        mensaje = if (rol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
-                            "Cuenta e instalación creadas en el servidor. El microservicio enviará las credenciales temporales al correo del usuario."
-                        } else {
-                            "Cuenta creada en el servidor. El microservicio enviará las credenciales temporales al correo del usuario."
-                        }
-                    )
-                }
-                accionReintentarAlta = null
+                )
             } catch (error: ApiRequestException) {
                 _altaRemota.value = AltaRemotaUiState(error = error.message)
             } catch (_: java.io.IOException) {
                 _altaRemota.value = AltaRemotaUiState(
-                    error = "No se pudo sincronizar la cuenta. Verifica la conexión y vuelve a intentarlo."
+                    error = "No se pudo crear la cuenta en el servidor. Verifica la conexión e inténtalo nuevamente."
+                )
+            } catch (error: RuntimeException) {
+                _altaRemota.value = AltaRemotaUiState(
+                    error = error.message ?: "El servidor devolvió datos que no se pudieron interpretar."
                 )
             }
         }
@@ -513,108 +402,112 @@ class UsuariosViewModel(application: Application) : AndroidViewModel(application
         return valor.asString
     }
 
-    private fun leerLongJson(json: JsonObject, clave: String): Long {
-        val valor = json.get(clave)
-        if (valor == null || valor.isJsonNull) {
-            return -1L
-        }
-        return valor.asLong
-    }
-
-    fun validarDisponibilidadCuenta(rut: String, correo: String): Map<String, String> =
-        buildMap {
-            if (db.existeRutUsuario(rut)) {
-                put("rut", "Ya existe una cuenta con ese RUT.")
-            }
-            if (db.existeCorreoUsuario(correo)) {
-                put("correo", "Ya existe una cuenta con ese correo.")
+    private fun leerLongJson(json: JsonObject, vararg claves: String): Long {
+        for (clave in claves) {
+            val valor = json.get(clave)
+            if (valor != null && !valor.isJsonNull) {
+                return valor.asLong
             }
         }
+        return -1L
+    }
 
-    fun validarDisponibilidadEmpresa(rut: String, razonSocial: String): Map<String, String> =
-        buildMap {
-            if (db.existeRutEmpresa(rut)) {
-                put("rutEmpresa", "Ya existe una empresa con ese RUT.")
+    fun cambiarAvatarDesdeCamara(foto: Bitmap, alCompletar: (String?) -> Unit) {
+        guardarAvatar(ConvertidorImagen.aBytes(foto), alCompletar)
+    }
+
+    fun cambiarAvatarDesdeGaleria(uri: Uri, alCompletar: (String?) -> Unit) {
+        val imagen = ConvertidorImagen.desdeUri(getApplication(), uri)
+        if (imagen == null) {
+            alCompletar("No se pudo leer la imagen seleccionada.")
+            return
+        }
+        guardarAvatar(ConvertidorImagen.aBytes(imagen), alCompletar)
+    }
+
+    private fun guardarAvatar(bytes: ByteArray, alCompletar: (String?) -> Unit) {
+        val usuario = _usuarioActual.value ?: run {
+            alCompletar("Inicia sesión nuevamente para cambiar el avatar.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val avatar = repositorioAvatar.subir(usuario.idUsuario, bytes)
+                val usuarioActualizado = usuario.copy(avatar = avatar)
+                _usuarioActual.value = usuarioActualizado
+                alCompletar(null)
+            } catch (error: ApiRequestException) {
+                alCompletar(error.message)
+            } catch (_: java.io.IOException) {
+                alCompletar("No se pudo subir la foto de perfil.")
             }
-            if (db.existeRazonSocialEmpresa(razonSocial)) {
-                put("razonSocial", "Ya existe una empresa con esa razón social.")
+        }
+    }
+
+    fun cambiarClave(
+        claveActual: String,
+        claveNueva: String,
+        alCompletar: (String?) -> Unit
+    ) {
+        val usuario = _usuarioActual.value ?: run {
+            alCompletar("Inicia sesión nuevamente para cambiar la contraseña.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val respuesta = repositorioUsuarios.cambiarContrasena(
+                    usuario.correo,
+                    claveActual,
+                    claveNueva
+                )
+                sesionPreferencias.guardarToken(respuesta.token)
+                _usuarioActual.value = usuario.copy(debeCambiarContrasena = false)
+                alCompletar(null)
+            } catch (error: ApiRequestException) {
+                alCompletar(error.message)
+            } catch (_: java.io.IOException) {
+                alCompletar("No se pudo cambiar la contraseña. Verifica tu conexión.")
             }
         }
+    }
 
-    private fun generarContrasenaTemporal(): String {
-        val mayusculas = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-        val minusculas = "abcdefghijkmnopqrstuvwxyz"
-        val numeros = "23456789"
-        val especiales = "!@#$%&*+-_"
-        val todos = mayusculas + minusculas + numeros + especiales
-        val caracteres = mutableListOf(
-            mayusculas[secureRandom.nextInt(mayusculas.length)],
-            minusculas[secureRandom.nextInt(minusculas.length)],
-            numeros[secureRandom.nextInt(numeros.length)],
-            especiales[secureRandom.nextInt(especiales.length)]
-        )
-        repeat(12) {
-            caracteres += todos[secureRandom.nextInt(todos.length)]
+    fun actualizarPerfil(
+        nombre: String,
+        telefono: String,
+        alCompletar: (String?) -> Unit
+    ) {
+        val usuario = _usuarioActual.value ?: run {
+            alCompletar("Inicia sesión nuevamente para actualizar el perfil.")
+            return
         }
-        for (i in caracteres.lastIndex downTo 1) {
-            val j = secureRandom.nextInt(i + 1)
-            val temporal = caracteres[i]
-            caracteres[i] = caracteres[j]
-            caracteres[j] = temporal
+        val telefonoNormalizado = ValidarTelefonoChile.normalizar(telefono)
+        if (telefonoNormalizado == null || nombre.isBlank()) {
+            alCompletar("Ingresa un nombre y un teléfono válidos.")
+            return
         }
-        return caracteres.joinToString("")
-    }
-
-    fun cambiarAvatarDesdeCamara(foto: Bitmap) {
-        guardarAvatar(ConvertidorImagen.aBytes(foto))
-    }
-
-    fun cambiarAvatarDesdeGaleria(uri: Uri) {
-        val imagen = ConvertidorImagen.desdeUri(getApplication(), uri) ?: return
-        guardarAvatar(ConvertidorImagen.aBytes(imagen))
-    }
-
-    private fun guardarAvatar(bytes: ByteArray) {
-        val usuario = _usuarioActual.value ?: return
-        if (db.actualizarFotoUsuario(usuario.idUsuario, bytes)) {
-            _usuarioActual.value = db.buscarPorIdUsuario(usuario.idUsuario)
+        val partesNombre = nombre.trim().split(Regex("\\s+"), limit = 2)
+        val nombrePila = partesNombre.firstOrNull().orEmpty()
+        val apellido = partesNombre.getOrNull(1).orEmpty()
+        if (apellido.isBlank()) {
+            alCompletar("Ingresa nombre y apellido.")
+            return
         }
-    }
-
-    fun cambiarClave(claveActual: String, claveNueva: String): Boolean {
-        val usuario = _usuarioActual.value ?: return false
-        val exito = db.cambiarClave(usuario.idUsuario, claveActual, claveNueva)
-        if (exito) {
-            _usuarioActual.value = db.buscarPorIdUsuario(usuario.idUsuario)
+        viewModelScope.launch {
+            try {
+                val respuesta = repositorioUsuarios.actualizarPerfil(
+                    usuario.idUsuario,
+                    nombrePila,
+                    apellido,
+                    telefonoNormalizado
+                )
+                val usuarioActualizado = convertirUsuario(respuesta).copy(avatar = usuario.avatar)
+                _usuarioActual.value = usuarioActualizado
+                alCompletar(null)
+            } catch (error: ApiRequestException) {
+                alCompletar(error.message)
+            } catch (_: java.io.IOException) {
+                alCompletar("No se pudo actualizar el perfil. Verifica tu conexión.")
+            }
         }
-        return exito
-    }
-
-    fun actualizarPerfil(nombre: String, telefono: String): Boolean {
-        val usuario = _usuarioActual.value ?: return false
-        val telefonoNormalizado = ValidarTelefonoChile.normalizar(telefono) ?: return false
-        if (!db.actualizarPerfilUsuario(usuario.idUsuario, nombre, telefonoNormalizado)) return false
-        val usuarioActualizado = db.buscarPorIdUsuario(usuario.idUsuario) ?: return false
-        _usuarioActual.value = usuarioActualizado
-        return true
-    }
-
-    fun existeUsuarioActivo(correo: String): Boolean {
-        return db.existeUsuarioActivo(correo)
-    }
-
-    fun recuperarClaveConRespuesta(
-        correo: String,
-        pregunta: String,
-        respuesta: String,
-        nuevaClave: String
-    ): Boolean {
-        return db.recuperarClaveConRespuesta(correo, pregunta, respuesta, nuevaClave)
-    }
-
-    override fun onCleared() {
-        repositorio.cerrar()
-        db.close()
-        super.onCleared()
     }
 }

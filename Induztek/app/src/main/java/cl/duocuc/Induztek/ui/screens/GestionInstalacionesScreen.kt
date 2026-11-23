@@ -50,8 +50,8 @@ fun GestionInstalacionesScreen(
 ) {
     val estado by viewModel.uiState.collectAsState()
     val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
-    val clientes = remember(usuarioActivo?.idUsuario) {
-        viewModel.clientesConEmpresaParaInstalaciones(usuarioActivo)
+    var clientes by remember(usuarioActivo?.idUsuario) {
+        mutableStateOf(emptyList<cl.duocuc.Induztek.model.CuentaEmpresaLocal>())
     }
     var clienteSeleccionadoId by remember { mutableStateOf<Long?>(null) }
     var menuExpandido by remember { mutableStateOf(false) }
@@ -83,6 +83,13 @@ fun GestionInstalacionesScreen(
     var instalaciones by remember { mutableStateOf(emptyList<cl.duocuc.Induztek.model.InstalacionCatalogoLocal>()) }
     var equiposPorInstalacion by remember { mutableStateOf(emptyMap<Long, List<cl.duocuc.Induztek.model.EquipoCatalogoLocal>>()) }
 
+    LaunchedEffect(usuarioActivo?.idUsuario) {
+        clientes = viewModel.leerClientesConEmpresaParaInstalaciones(usuarioActivo)
+        if (clienteSeleccionadoId == null) {
+            clienteSeleccionadoId = clientes.firstOrNull()?.idUsuario
+        }
+    }
+
     LaunchedEffect(clienteSeleccionadoId, recarga, usuarioActivo?.idUsuario) {
         val idCliente = clienteSeleccionadoId
         if (idCliente == null) {
@@ -107,7 +114,9 @@ fun GestionInstalacionesScreen(
 
     LaunchedEffect(estado.mensajeErrorFormulario) {
         val errorRemoto = estado.mensajeErrorFormulario
-        if (errorRemoto != null && errorRemoto.startsWith("Sincronización:")) {
+        if (errorRemoto != null &&
+            (errorRemoto.startsWith("El servidor") || errorRemoto.startsWith("No se pudo"))
+        ) {
             snackbarHostState.showSnackbar(errorRemoto)
             viewModel.descartarErrorFormulario()
         }
@@ -483,52 +492,52 @@ fun GestionInstalacionesScreen(
                                                 }
                                                 erroresEquipo = nuevosErrores
                                                 if (nuevosErrores.isEmpty()) {
-                                                    val resultado = viewModel.crearEquipoParaInstalacion(
-                                                        idInstalacion = instalacion.idInstalacion,
-                                                        idTipoEquipo = tipoEquipoId!!,
-                                                        tag = tag,
-                                                        marca = marca,
-                                                        modelo = modelo,
-                                                        numeroSerie = numeroSerie,
-                                                        potenciaKva = potenciaKva.takeIf { it.isNotBlank() }
-                                                            ?.replace(',', '.')?.toDouble(),
-                                                        tensiones = tensiones,
-                                                        anoFabricacion = anoFabricacion,
-                                                        posicionTap = posicionTap,
-                                                        grupoConexion = grupoConexion,
-                                                        resistenciaContactoMaxUohm =
-                                                            resistenciaContacto.takeIf { it.isNotBlank() }
+                                                    scope.launch {
+                                                        val resultado = viewModel.crearEquipoParaInstalacion(
+                                                            idInstalacion = instalacion.idInstalacion,
+                                                            idTipoEquipo = tipoEquipoId!!,
+                                                            tag = tag,
+                                                            marca = marca,
+                                                            modelo = modelo,
+                                                            numeroSerie = numeroSerie,
+                                                            potenciaKva = potenciaKva.takeIf { it.isNotBlank() }
                                                                 ?.replace(',', '.')?.toDouble(),
-                                                        idCliente = clienteSeleccionado.idUsuario,
-                                                        usuario = usuarioActivo
-                                                    )
-                                                    if (resultado.exitosa) {
-                                                        mensajeEquipo = "Equipo registrado. Ya está disponible para crear protocolos."
-                                                        tag = ""
-                                                        marca = ""
-                                                        modelo = ""
-                                                        numeroSerie = ""
-                                                        potenciaKva = ""
-                                                        tensiones = ""
-                                                        anoFabricacion = ""
-                                                        posicionTap = ""
-                                                        grupoConexion = ""
-                                                        resistenciaContacto = ""
-                                                        recarga += 1
-                                                        scope.launch {
+                                                            tensiones = tensiones,
+                                                            anoFabricacion = anoFabricacion,
+                                                            posicionTap = posicionTap,
+                                                            grupoConexion = grupoConexion,
+                                                            resistenciaContactoMaxUohm =
+                                                                resistenciaContacto.takeIf { it.isNotBlank() }
+                                                                    ?.replace(',', '.')?.toDouble(),
+                                                            idCliente = clienteSeleccionado.idUsuario,
+                                                            usuario = usuarioActivo
+                                                        )
+                                                        if (resultado.exitosa) {
+                                                            mensajeEquipo = "Equipo registrado. Ya está disponible para crear protocolos."
+                                                            tag = ""
+                                                            marca = ""
+                                                            modelo = ""
+                                                            numeroSerie = ""
+                                                            potenciaKva = ""
+                                                            tensiones = ""
+                                                            anoFabricacion = ""
+                                                            posicionTap = ""
+                                                            grupoConexion = ""
+                                                            resistenciaContacto = ""
+                                                            recarga += 1
                                                             snackbarHostState.showSnackbar(
                                                                 "Equipo creado correctamente"
                                                             )
                                                             onIrInicio()
-                                                        }
-                                                    } else {
-                                                        val campoError = resultado.campoError
-                                                        if (campoError in setOf("tag", "tipo")) {
-                                                            erroresEquipo = mapOf(
-                                                                campoError!! to resultado.mensajeError.orEmpty()
-                                                            )
                                                         } else {
-                                                            mensajeEquipo = resultado.mensajeError
+                                                            val campoError = resultado.campoError
+                                                            if (campoError in setOf("tag", "tipo")) {
+                                                                erroresEquipo = mapOf(
+                                                                    campoError!! to resultado.mensajeError.orEmpty()
+                                                                )
+                                                            } else {
+                                                                mensajeEquipo = resultado.mensajeError
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -588,18 +597,23 @@ fun GestionInstalacionesScreen(
                                     } -> {
                                         errorNombre = "Esta instalación ya existe para la empresa."
                                     }
-                                    viewModel.crearInstalacionParaCliente(
-                                        clienteSeleccionado.idUsuario,
-                                        nombreLimpio,
-                                        usuarioActivo
-                                    ) -> {
-                                        nombreInstalacion = ""
-                                        errorNombre = null
-                                        mensaje = "Instalación creada. Ya puedes asignarla a un técnico."
-                                        recarga += 1
-                                    }
                                     else -> {
-                                        mensaje = "No se pudo crear la instalación. Comprueba los datos e inténtalo nuevamente."
+                                        scope.launch {
+                                            val creada = viewModel.crearInstalacionParaCliente(
+                                                clienteSeleccionado.idUsuario,
+                                                nombreLimpio,
+                                                usuarioActivo
+                                            )
+                                            if (creada) {
+                                                nombreInstalacion = ""
+                                                errorNombre = null
+                                                mensaje = "Instalación creada. Ya puedes asignarla a un técnico."
+                                                recarga += 1
+                                            } else {
+                                                mensaje = estado.mensajeErrorFormulario
+                                                    ?: "No se pudo crear la instalación. Comprueba los datos e inténtalo nuevamente."
+                                            }
+                                        }
                                     }
                                 }
 

@@ -93,29 +93,29 @@ fun ComprobanteTerrenoScreen(
         } else {
             motivoRevision.trim()
         }
-        val protocoloActualizado = viewModel.cambiarEstadoProtocolo(
-            idProtocolo,
-            estadoNuevo,
-            usuarioRevisor,
-            motivo
-        )
-        if (protocoloActualizado == null || protocoloActualizado.estado != estadoNuevo) {
-            mensajeRevision = when (estadoNuevo) {
-                "OBSERVADO" -> "No se observó el protocolo. Verifica que siga pendiente y que el motivo esté completo."
-                "ANULADO" -> "No se anuló el protocolo. Verifica que siga pendiente y que indicaste el motivo."
-                else -> "No se formalizó el protocolo. Verifica que siga pendiente de revisión."
-            }
-            return
-        }
-
-        protocolo = protocoloActualizado
-        mensajeRevision = null
-        val mensajeConfirmacion = when (estadoNuevo) {
-            "OBSERVADO" -> "Protocolo observado; el motivo quedó registrado."
-            "ANULADO" -> "Protocolo anulado; el motivo quedó registrado."
-            else -> "Protocolo formalizado correctamente."
-        }
         scope.launch {
+            val protocoloActualizado = viewModel.cambiarEstadoProtocolo(
+                idProtocolo,
+                estadoNuevo,
+                usuarioRevisor,
+                motivo
+            )
+            if (protocoloActualizado == null || protocoloActualizado.estado != estadoNuevo) {
+                mensajeRevision = when (estadoNuevo) {
+                    "OBSERVADO" -> "No se observó el protocolo. Verifica que siga pendiente y que el motivo esté completo."
+                    "ANULADO" -> "No se anuló el protocolo. Verifica que siga pendiente y que indicaste el motivo."
+                    else -> "No se formalizó el protocolo. Verifica que siga pendiente de revisión."
+                }
+                return@launch
+            }
+
+            protocolo = protocoloActualizado
+            mensajeRevision = null
+            val mensajeConfirmacion = when (estadoNuevo) {
+                "OBSERVADO" -> "Protocolo observado; el motivo quedó registrado."
+                "ANULADO" -> "Protocolo anulado; el motivo quedó registrado."
+                else -> "Protocolo formalizado correctamente."
+            }
             snackbarHostState.showSnackbar(mensajeConfirmacion)
         }
     }

@@ -58,6 +58,16 @@ data class TipoEquipoCatalogoLocal(
     val clasificacion: String
 )
 
+object TiposEquipoCatalogo {
+    val todos = listOf(
+        TipoEquipoCatalogoLocal(1L, "Transformador", "PRIMARIO"),
+        TipoEquipoCatalogoLocal(2L, "Celda MT", "PRIMARIO"),
+        TipoEquipoCatalogoLocal(3L, "Interruptor", "PRIMARIO"),
+        TipoEquipoCatalogoLocal(4L, "Cable de poder", "PRIMARIO"),
+        TipoEquipoCatalogoLocal(5L, "Relé de protección", "SECUNDARIO")
+    )
+}
+
 data class CrearEquipoResultado(
     val idEquipo: Long? = null,
     val campoError: String? = null,

@@ -80,10 +80,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun PerfilScreen(
     usuarioActivo: Usuario?,
-    onCambiarFotoCamara: (Bitmap) -> Unit,
-    onCambiarFotoGaleria: (Uri) -> Unit,
-    onCambiarClave: (String, String) -> Boolean,
-    onActualizarPerfil: (String, String) -> Boolean,
+    onCambiarFotoCamara: (Bitmap, (String?) -> Unit) -> Unit,
+    onCambiarFotoGaleria: (Uri, (String?) -> Unit) -> Unit,
+    onCambiarClave: (String, String, (String?) -> Unit) -> Unit,
+    onActualizarPerfil: (String, String, (String?) -> Unit) -> Unit,
     onCerrarSesion: () -> Unit
 ) {
     val context = LocalContext.current
@@ -99,12 +99,14 @@ fun PerfilScreen(
         mutableStateOf(usuarioActivo?.telefono.orEmpty())
     }
     var errorPerfil by remember { mutableStateOf<String?>(null) }
+    var guardandoPerfil by remember { mutableStateOf(false) }
 
     var mostrarFormularioClave by remember { mutableStateOf(false) }
     var claveActual by remember { mutableStateOf("") }
     var claveNueva by remember { mutableStateOf("") }
     var claveConfirmar by remember { mutableStateOf("") }
     var errorClave by remember { mutableStateOf<String?>(null) }
+    var cambiandoClave by remember { mutableStateOf(false) }
     val claveEvaluada = claveNueva.trim()
     val cumpleLongitud = claveEvaluada.length >= ValidarContrasena.LONGITUD_MINIMA
     val tieneMayuscula = claveEvaluada.any { it.isUpperCase() }
@@ -125,7 +127,11 @@ fun PerfilScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            onCambiarFotoCamara(bitmap)
+            onCambiarFotoCamara(bitmap) { error ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(error ?: "La foto de perfil se actualizó.")
+                }
+            }
         }
     }
 
@@ -145,7 +151,11 @@ fun PerfilScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            onCambiarFotoGaleria(uri)
+            onCambiarFotoGaleria(uri) { error ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(error ?: "La foto de perfil se actualizó.")
+                }
+            }
         }
     }
 
@@ -366,7 +376,7 @@ fun PerfilScreen(
                         )
                         if (editarPerfil) {
                             BotonPrincipal(
-                                texto = "Guardar",
+                                texto = if (guardandoPerfil) "Guardando..." else "Guardar",
                                 onClick = {
                                     when {
                                         nombreEditado.isBlank() -> errorPerfil = "Ingresa el nombre que debe aparecer en tu perfil."
@@ -374,17 +384,28 @@ fun PerfilScreen(
                                         !ValidarTelefonoChile.esValido(telefonoEditado) -> {
                                             errorPerfil = "El teléfono debe tener formato 9XXXXXXXX o +569XXXXXXXX."
                                         }
-                                        onActualizarPerfil(nombreEditado, telefonoEditado) -> {
-                                            telefonoEditado = ValidarTelefonoChile.normalizar(telefonoEditado).orEmpty()
-                                            editarPerfil = false
-                                            errorPerfil = null
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("Los datos del perfil se actualizaron.")
+                                        else -> {
+                                            guardandoPerfil = true
+                                            onActualizarPerfil(nombreEditado, telefonoEditado) { error ->
+                                                guardandoPerfil = false
+                                                if (error == null) {
+                                                    telefonoEditado =
+                                                        ValidarTelefonoChile.normalizar(telefonoEditado).orEmpty()
+                                                    editarPerfil = false
+                                                    errorPerfil = null
+                                                    scope.launch {
+                                                        snackbarHostState.showSnackbar(
+                                                            "Los datos del perfil se actualizaron."
+                                                        )
+                                                    }
+                                                } else {
+                                                    errorPerfil = error
+                                                }
                                             }
                                         }
-                                        else -> errorPerfil = "No se guardaron los cambios. Revisa el nombre y el teléfono e inténtalo nuevamente."
                                     }
                                 },
+                                habilitado = !guardandoPerfil,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -484,7 +505,7 @@ fun PerfilScreen(
                         }
 
                         BotonPrincipal(
-                            texto = "Confirmar Cambio",
+                            texto = if (cambiandoClave) "Actualizando..." else "Confirmar Cambio",
                             onClick = {
                                 when {
                                     claveActual.isBlank() -> errorClave = "Ingresa tu contraseña actual."
@@ -497,21 +518,27 @@ fun PerfilScreen(
                                         errorClave = "La nueva contraseña debe tener mínimo ${ValidarContrasena.LONGITUD_MINIMA} caracteres, una mayúscula, un número y un carácter especial."
                                     }
                                     else -> {
-                                        val exito = onCambiarClave(claveActual, claveNueva)
-                                        if (exito) {
-                                            claveActual = ""
-                                            claveNueva = ""
-                                            claveConfirmar = ""
-                                            errorClave = null
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("La contraseña se actualizó correctamente.")
+                                        cambiandoClave = true
+                                        onCambiarClave(claveActual, claveNueva) { error ->
+                                            cambiandoClave = false
+                                            if (error == null) {
+                                                claveActual = ""
+                                                claveNueva = ""
+                                                claveConfirmar = ""
+                                                errorClave = null
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        "La contraseña se actualizó correctamente."
+                                                    )
+                                                }
+                                            } else {
+                                                errorClave = error
                                             }
-                                        } else {
-                                            errorClave = "La contraseña actual no coincide con la registrada. Vuelve a ingresarla."
                                         }
                                     }
                                 }
                             },
+                            habilitado = !cambiandoClave,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }

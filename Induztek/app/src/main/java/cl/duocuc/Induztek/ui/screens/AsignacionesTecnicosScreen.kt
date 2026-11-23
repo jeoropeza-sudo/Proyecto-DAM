@@ -71,8 +71,8 @@ fun AsignacionesTecnicosScreen(
         Rol.CODIGO_JEFE_TECNICO,
         ignoreCase = true
     ) || usuarioActivo?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
-    val tecnicos = remember(usuarioActivo?.idUsuario, puedeAsignar) {
-        viewModel.tecnicosParaAsignacion(usuarioActivo)
+    var tecnicos by remember(usuarioActivo?.idUsuario, puedeAsignar) {
+        mutableStateOf(emptyList<Usuario>())
     }
     val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
     var instalaciones by remember { mutableStateOf(emptyList<cl.duocuc.Induztek.model.InstalacionAsignacionLocal>()) }
@@ -95,6 +95,8 @@ fun AsignacionesTecnicosScreen(
     }
 
     LaunchedEffect(usuarioActivo?.idUsuario, puedeAsignar) {
+        tecnicos = viewModel.leerTecnicosParaAsignacion(usuarioActivo)
+        tecnicoSeleccionadoId = tecnicos.firstOrNull()?.idUsuario
         instalaciones = viewModel.leerInstalacionesParaAsignacion(usuarioActivo)
     }
 
@@ -112,15 +114,15 @@ fun AsignacionesTecnicosScreen(
             return
         }
 
-        val guardado = viewModel.guardarAsignacionesTecnico(
-            idTecnico,
-            instalacionesSeleccionadas,
-            usuarioActivo
-        )
-        if (guardado) {
-            asignacionesOriginales = instalacionesSeleccionadas
-            mensaje = null
-            scope.launch {
+        scope.launch {
+            val guardado = viewModel.guardarAsignacionesTecnico(
+                idTecnico,
+                instalacionesSeleccionadas,
+                usuarioActivo
+            )
+            if (guardado) {
+                asignacionesOriginales = instalacionesSeleccionadas
+                mensaje = null
                 instalacionesOcupadas = viewModel.leerInstalacionesAsignadasAOtrosTecnicos(
                     idTecnico,
                     usuarioActivo
@@ -128,9 +130,9 @@ fun AsignacionesTecnicosScreen(
                 snackbarHostState.showSnackbar(
                     "Se actualizaron ${instalacionesSeleccionadas.size} instalaciones para el técnico."
                 )
+            } else {
+                mensaje = "No se guardaron las asignaciones. Quita las instalaciones ocupadas por otro técnico y vuelve a intentar."
             }
-        } else {
-            mensaje = "No se guardaron las asignaciones. Quita las instalaciones ocupadas por otro técnico y vuelve a intentar."
         }
     }
 

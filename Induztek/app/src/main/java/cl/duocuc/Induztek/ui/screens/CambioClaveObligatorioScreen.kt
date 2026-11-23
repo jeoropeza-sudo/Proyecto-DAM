@@ -35,6 +35,7 @@ fun CambioClaveObligatorioScreen(
     var errorTemporal by remember { mutableStateOf<String?>(null) }
     var errorNueva by remember { mutableStateOf<String?>(null) }
     var errorRepetir by remember { mutableStateOf<String?>(null) }
+    var cambiando by remember { mutableStateOf(false) }
 
     Scaffold { padding ->
         Column(
@@ -95,16 +96,21 @@ fun CambioClaveObligatorioScreen(
                         else -> null
                     }
                     if (errorTemporal == null && errorNueva == null && errorRepetir == null) {
-                        if (usuarioActivo != null && viewModel.cambiarClave(claveTemporal, claveNueva)) {
-                            onClaveCambiada()
+                        if (usuarioActivo == null) {
+                            errorTemporal = "Inicia sesión nuevamente para cambiar la contraseña."
                         } else {
-                            errorTemporal = "La contraseña temporal no coincide. Verifícala e inténtalo nuevamente."
+                            cambiando = true
+                            viewModel.cambiarClave(claveTemporal, claveNueva) { error ->
+                                cambiando = false
+                                if (error == null) onClaveCambiada() else errorTemporal = error
+                            }
                         }
                     }
                 },
+                enabled = !cambiando,
                 modifier = Modifier.fillMaxWidth().height(50.dp)
             ) {
-                Text("CAMBIAR CONTRASEÑA")
+                Text(if (cambiando) "ACTUALIZANDO..." else "CAMBIAR CONTRASEÑA")
             }
         }
     }

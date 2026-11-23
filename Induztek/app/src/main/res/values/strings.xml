@@ -32,7 +32,7 @@
     <string name="titulo_editar">Editar Registro</string>
     <string name="menu_cerrar_sesion">Cerrar Sesión</string>
     <string name="dialogo_titulo">¿Cerrar Sesión?</string>
-    <string name="dialogo_mensaje">Tendrás que iniciar sesión nuevamente para guardar datos en SQLite.</string>
+    <string name="dialogo_mensaje">Tendrás que iniciar sesión nuevamente para acceder a los servicios.</string>
     <string name="dialogo_cancelar">Cancelar</string>
     <string name="snackbar_sesion_cerrada">Sesión cerrada</string>
 
@@ -51,7 +51,7 @@
 
     <string name="cd_eliminar">Eliminar registro</string>
     <string name="dialogo_eliminar_titulo">¿Eliminar protocolo?</string>
-    <string name="dialogo_eliminar_mensaje">Se eliminará el protocolo de %1$s de la base de datos SQLite.</string>
+    <string name="dialogo_eliminar_mensaje">Se eliminará el protocolo de %1$s del servidor.</string>
     <string name="btn_eliminar">Eliminar</string>
 
     <string name="btn_camara">Cámara</string>

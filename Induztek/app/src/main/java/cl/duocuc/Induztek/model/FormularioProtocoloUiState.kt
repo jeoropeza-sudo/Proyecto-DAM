@@ -5,7 +5,7 @@ import java.util.Date
 import java.util.Locale
 
 data class InstrumentoItem(
-    val idInstrumento: Long = 1L,
+    val idInstrumento: Long = 0L,
     val modelo: String,
     val numeroSerie: String,
     val fechaVencimiento: String,
@@ -59,14 +59,14 @@ data class MedicionReleUiState(
 )
 
 data class FormularioProtocoloUiState(
-    val idVisita: Long = 1L,
+    val idVisita: Long = 0L,
     val idEmpresaSeleccionada: Long = 0L,
-    val otNumero: String = "2026-1187",
+    val otNumero: String = "",
     val fechaVisita: String = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
     val horaInicio: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
-    val clienteNombre: String = "Envasadora del Pacífico S.A.",
+    val clienteNombre: String = "",
     val clientesDisponibles: List<String> = emptyList(),
-    val instalacionNombre: String = "Planta Lampa",
+    val instalacionNombre: String = "",
     val idInstalacionSeleccionada: Long = 0L,
     val instalacionesDisponibles: List<String> = emptyList(),
     val tecnicoNombre: String = "Matías Godoy Herrera",
@@ -78,39 +78,30 @@ data class FormularioProtocoloUiState(
     val esMedicionPosterior: Boolean = false,
     val instrumentosDisponibles: List<String> = emptyList(),
 
-    val idEquipo: Long = 1L,
-    val tagEquipo: String = "TR-01",
+    val idEquipo: Long = 0L,
+    val tagEquipo: String = "",
     val tagsDisponibles: List<String> = emptyList(),
     val tipoEquipo: String = "Transformador",
     val clasificacionEquipo: String = "PRIMARIO",
-    val marcaEquipo: String = "Rhona",
-    val modeloEquipo: String = "TR-1",
-    val numeroSerieEquipo: String = "RH-18733",
-    val potenciaKva: String = "1.500 kVA",
-    val anoFabricacion: String = "2012",
-    val tensiones: String = "12000 / 400 V",
-    val tapPosition: String = "3",
-    val conexionGrupo: String = "Dyn11",
+    val marcaEquipo: String = "",
+    val modeloEquipo: String = "",
+    val numeroSerieEquipo: String = "",
+    val potenciaKva: String = "",
+    val anoFabricacion: String = "",
+    val tensiones: String = "",
+    val tapPosition: String = "",
+    val conexionGrupo: String = "",
 
-    val instrumentoAislacionSeleccionado: InstrumentoItem = InstrumentoItem(1L, "Megger MIT525", "MIT-0045821", "15/03/2027"),
-    val instrumentosDisponiblesAislacion: List<InstrumentoItem> = listOf(
-        InstrumentoItem(1L, "Megger MIT525", "MIT-0045821", "15/03/2027"),
-        InstrumentoItem(2L, "Megger MIT1025", "MIT-0071233", "10/10/2026")
-    ),
+    val instrumentoAislacionSeleccionado: InstrumentoItem = InstrumentoItem(0L, "", "", ""),
+    val instrumentosDisponiblesAislacion: List<InstrumentoItem> = emptyList(),
 
-    val instrumentoTtrSeleccionado: InstrumentoItem = InstrumentoItem(3L, "Megger TTR300", "TTR-30044", "02/06/2027"),
-    val instrumentosDisponiblesTtr: List<InstrumentoItem> = listOf(
-        InstrumentoItem(3L, "Megger TTR300", "TTR-30044", "02/06/2027")
-    ),
+    val instrumentoTtrSeleccionado: InstrumentoItem = InstrumentoItem(0L, "", "", ""),
+    val instrumentosDisponiblesTtr: List<InstrumentoItem> = emptyList(),
 
-    val instrumentoDevanadosSeleccionado: InstrumentoItem = InstrumentoItem(4L, "Megger DLRO10X", "DLR-10882", "20/08/2026"),
-    val instrumentosDisponiblesDevanados: List<InstrumentoItem> = listOf(
-        InstrumentoItem(4L, "Megger DLRO10X", "DLR-10882", "20/08/2026")
-    ),
-    val instrumentoReleSeleccionado: InstrumentoItem = InstrumentoItem(5L, "Omicron CMC 356", "CMC-HB411", "05/01/2027"),
-    val instrumentosDisponiblesRele: List<InstrumentoItem> = listOf(
-        InstrumentoItem(5L, "Omicron CMC 356", "CMC-HB411", "05/01/2027")
-    ),
+    val instrumentoDevanadosSeleccionado: InstrumentoItem = InstrumentoItem(0L, "", "", ""),
+    val instrumentosDisponiblesDevanados: List<InstrumentoItem> = emptyList(),
+    val instrumentoReleSeleccionado: InstrumentoItem = InstrumentoItem(0L, "", "", ""),
+    val instrumentosDisponiblesRele: List<InstrumentoItem> = emptyList(),
 
     val aislacionFilas: List<MedicionAislacionUiState> = listOf(
         MedicionAislacionUiState(devanado = "AT – BT", tensionPrueba = "5 kV"),
@@ -155,7 +146,7 @@ data class FormularioProtocoloUiState(
     val mensajeErrorDescripcionMantenimiento: String? = null,
     val mensajeErrorMediciones: String? = null,
 
-    val lecturaAnterior1Min: Double? = 9800.0,
+    val lecturaAnterior1Min: Double? = null,
     val variacionDetectada: Boolean = false,
     val variacionPctCalculada: Double = 0.0,
     val resultadoGlobal: String = "PENDIENTE",

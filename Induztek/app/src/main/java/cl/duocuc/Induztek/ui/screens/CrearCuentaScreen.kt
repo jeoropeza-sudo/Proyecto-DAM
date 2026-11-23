@@ -96,14 +96,22 @@ fun CrearCuentaScreen(
         if (alta != null && alta.exitosa) {
             AlertDialog(
                 onDismissRequest = {},
-                title = { Text("Cuenta creada") },
+                title = {
+                    Text(
+                        when {
+                            estadoAltaRemota.error != null -> "No se pudo crear la cuenta"
+                            estadoAltaRemota.mensaje != null -> "Cuenta creada"
+                            else -> "Creando cuenta"
+                        }
+                    )
+                },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Las credenciales de acceso se generan y envían por correo cuando el servidor confirma el alta."
                         )
                         if (estadoAltaRemota.cargando) {
-                            Text("Sincronizando la cuenta con el servidor.")
+                            Text("Creando la cuenta en el servidor.")
                             CircularProgressIndicator()
                         }
                         val mensajeAlta = estadoAltaRemota.mensaje
@@ -116,11 +124,6 @@ fun CrearCuentaScreen(
                                 errorAlta,
                                 color = MaterialTheme.colorScheme.error
                             )
-                            TextButton(
-                                onClick = { viewModel.reintentarAltaRemota() }
-                            ) {
-                                Text("Reintentar sincronización")
-                            }
                         }
                     }
                 },
@@ -226,9 +229,6 @@ fun CrearCuentaScreen(
                         texto = if (esCliente) "Continuar" else "Crear cuenta",
                         onClick = {
                             var nuevosErrores = validarCuenta(rut, nombre, correo, telefono)
-                            if (nuevosErrores.isEmpty()) {
-                                nuevosErrores = viewModel.validarDisponibilidadCuenta(rut, correo)
-                            }
                             errores = nuevosErrores
                             if (nuevosErrores.isEmpty()) {
                                 if (esCliente) {
@@ -281,13 +281,8 @@ fun CrearCuentaScreen(
                                 rutEmpresa, razonSocial, giro, direccion,
                                 contactoNombre, contactoCorreo, contactoTelefono
                             )
-                            val erroresCompletos = if (nuevosErrores.isEmpty()) {
-                                viewModel.validarDisponibilidadEmpresa(rutEmpresa, razonSocial)
-                            } else {
-                                nuevosErrores
-                            }
-                            errores = erroresCompletos
-                            if (erroresCompletos.isEmpty()) pasoInstalacion = true
+                            errores = nuevosErrores
+                            if (nuevosErrores.isEmpty()) pasoInstalacion = true
                         },
                         modifier = Modifier.weight(1.2f)
                     )

@@ -20,16 +20,12 @@ data class UsuarioResponse(
     val correo: String,
     val telefono: String?,
     val empresaId: Long?,
+    val empresaNombre: String?,
     val rolId: Long,
     val rolNombre: String,
     val activo: Boolean,
-    val debeCambiarClave: Boolean
-)
-
-data class RolResponse(
-    val id: Long,
-    val codigo: String?,
-    val nombre: String
+    val debeCambiarClave: Boolean,
+    val avatarUrl: String?
 )
 
 data class SolicitudCorreoRecuperacion(val correo: String)
@@ -40,9 +36,26 @@ data class SolicitudRestablecimiento(
     val contrasenaNueva: String
 )
 
+data class SolicitudCambioContrasena(
+    val correo: String,
+    val contrasenaActual: String,
+    val contrasenaNueva: String
+)
+
+data class SolicitudActualizacionPerfil(
+    val nombre: String,
+    val apellido: String,
+    val telefono: String
+)
+
 data class SolicitudAsignacion(
     val asignadoPor: Long,
     val idsInstalacion: List<Long>
+)
+
+data class SolicitudEstadoProtocolo(
+    val estado: String,
+    val motivo: String?
 )
 
 data class ErrorResponse(

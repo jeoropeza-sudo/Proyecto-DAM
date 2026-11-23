@@ -4,9 +4,6 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.core.content.edit
-import cl.duocuc.Induztek.model.Usuario
-import com.google.gson.Gson
-import com.google.gson.JsonParseException
 
 class SesionPreferencias(context: Context) {
 
@@ -16,12 +13,14 @@ class SesionPreferencias(context: Context) {
     companion object {
         private const val CLAVE_ID_USUARIO = "id_usuario"
         private const val CLAVE_TOKEN = "jwt"
-        private const val CLAVE_USUARIO = "usuario"
         private const val SIN_SESION = -1L
     }
 
     fun guardar(idUsuario: Long) {
-        prefs.edit { putLong(CLAVE_ID_USUARIO, idUsuario) }
+        prefs.edit {
+            putLong(CLAVE_ID_USUARIO, idUsuario)
+            remove("usuario")
+        }
     }
 
     fun guardarToken(token: String) {
@@ -32,25 +31,15 @@ class SesionPreferencias(context: Context) {
         return credencialesSeguras.getString(CLAVE_TOKEN, null)
     }
 
-    fun guardarUsuario(usuario: Usuario) {
-        prefs.edit { putString(CLAVE_USUARIO, Gson().toJson(usuario)) }
+    fun leer(): Long {
+        prefs.edit { remove("usuario") }
+        return prefs.getLong(CLAVE_ID_USUARIO, SIN_SESION)
     }
-
-    fun leerUsuario(): Usuario? {
-        val contenido = prefs.getString(CLAVE_USUARIO, null) ?: return null
-        try {
-            return Gson().fromJson(contenido, Usuario::class.java)
-        } catch (_: JsonParseException) {
-            return null
-        }
-    }
-
-    fun leer(): Long = prefs.getLong(CLAVE_ID_USUARIO, SIN_SESION)
 
     fun borrar() {
         prefs.edit {
             remove(CLAVE_ID_USUARIO)
-            remove(CLAVE_USUARIO)
+            remove("usuario")
         }
         credencialesSeguras.edit { remove(CLAVE_TOKEN) }
     }

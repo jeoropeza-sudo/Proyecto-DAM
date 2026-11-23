@@ -5,11 +5,14 @@ import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duocuc.Induztek.data.remote.ApiRequestException
-import cl.duocuc.Induztek.data.remote.InduztekRepository
+import cl.duocuc.Induztek.data.remote.RetrofitClient
+import cl.duocuc.Induztek.data.remote.SolicitudAsignacion
+import cl.duocuc.Induztek.data.remote.SolicitudEstadoProtocolo
+import cl.duocuc.Induztek.data.remote.exigirCuerpo
+import cl.duocuc.Induztek.data.remote.exigirExito
 import cl.duocuc.Induztek.data.remote.MedicionRequest
 import cl.duocuc.Induztek.data.remote.ProtocoloPendienteRequest
 import cl.duocuc.Induztek.data.remote.ProtocoloRequest
-import cl.duocuc.Induztek.data.InduztekDbHelper
 import cl.duocuc.Induztek.model.FormularioProtocoloUiState
 import cl.duocuc.Induztek.model.InstrumentoItem
 import cl.duocuc.Induztek.model.ClienteCatalogoLocal
@@ -18,6 +21,7 @@ import cl.duocuc.Induztek.model.InstalacionCatalogoLocal
 import cl.duocuc.Induztek.model.InstalacionAsignacionLocal
 import cl.duocuc.Induztek.model.EquipoCatalogoLocal
 import cl.duocuc.Induztek.model.TipoEquipoCatalogoLocal
+import cl.duocuc.Induztek.model.TiposEquipoCatalogo
 import cl.duocuc.Induztek.model.CrearEquipoResultado
 import cl.duocuc.Induztek.model.MedicionAislacionUiState
 import cl.duocuc.Induztek.model.MedicionContactosUiState
@@ -28,6 +32,7 @@ import cl.duocuc.Induztek.model.ProtocoloTerreno
 import cl.duocuc.Induztek.model.RegistroProtocolo
 import cl.duocuc.Induztek.model.Rol
 import cl.duocuc.Induztek.model.Usuario
+import cl.duocuc.Induztek.model.HistorialEstadoProtocolo
 import cl.duocuc.Induztek.notificaciones.NotificacionesLocales
 import cl.duocuc.Induztek.model.ValidarRut
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,16 +41,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.google.gson.JsonObject
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
 class ProtocoloViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = InduztekDbHelper(application)
-    private val repositorioRemoto = InduztekRepository(application)
+    private val apis = RetrofitClient.crear(application)
 
     private val _uiState = MutableStateFlow(FormularioProtocoloUiState())
     val uiState: StateFlow<FormularioProtocoloUiState> = _uiState.asStateFlow()
@@ -60,6 +67,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     private var empresasRemotas = emptyList<ClienteCatalogoLocal>()
     private var instalacionesRemotas = emptyList<InstalacionAsignacionLocal>()
     private var equiposRemotos = emptyList<EquipoCatalogoLocal>()
+    private var tecnicosRemotos = emptyList<Usuario>()
+    private var cuentasClienteRemotas = emptyList<CuentaEmpresaLocal>()
 
     fun limpiarProtocoloRegistrado() {
         _uiState.update { it.copy(idProtocoloRegistrado = null) }
@@ -77,72 +86,26 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 it.copy(protocolosPendientesVisita = 0, tagsPendientesVisita = emptyList())
             }
         }
-        val empresas = db.listarClientes()
-        val empresasPermitidas = when (usuario.rolCodigo.uppercase()) {
-            Rol.CODIGO_CLIENTE -> empresas.filter { it.idEmpresa == usuario.idEmpresaCliente }
-            Rol.CODIGO_TECNICO -> db.listarClientesTecnico(usuario.idUsuario)
-            else -> empresas
-        }
-        val instrumentosAislacion = db.listarInstrumentos("AISLACION")
-        val instrumentosTtr = db.listarInstrumentos("TTR")
-        val instrumentosDevanados = db.listarInstrumentos("DEVANADOS")
-        val instrumentosRele = db.listarInstrumentos("RELE")
         _uiState.update {
             it.copy(
-                clientesDisponibles = empresasPermitidas.map { empresa -> empresa.razonSocial },
-                instrumentosDisponiblesAislacion = instrumentosAislacion,
-                instrumentosDisponiblesTtr = instrumentosTtr,
-                instrumentosDisponiblesDevanados = instrumentosDevanados,
-                instrumentosDisponiblesRele = instrumentosRele,
+                clientesDisponibles = emptyList(),
+                instalacionesDisponibles = emptyList(),
+                tagsDisponibles = emptyList(),
+                instrumentosDisponiblesAislacion = emptyList(),
+                instrumentosDisponiblesTtr = emptyList(),
+                instrumentosDisponiblesDevanados = emptyList(),
+                instrumentosDisponiblesRele = emptyList(),
+                instrumentoAislacionSeleccionado = InstrumentoItem(0L, "", "", ""),
+                instrumentoTtrSeleccionado = InstrumentoItem(0L, "", "", ""),
+                instrumentoDevanadosSeleccionado = InstrumentoItem(0L, "", "", ""),
+                instrumentoReleSeleccionado = InstrumentoItem(0L, "", "", ""),
                 tecnicoNombre = if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
                     usuario.nombre
                 } else {
                     ""
                 },
-                ingenieroNombre = "",
-                instrumentoAislacionSeleccionado = primeroVigente(instrumentosAislacion) ?: it.instrumentoAislacionSeleccionado,
-                instrumentoTtrSeleccionado = primeroVigente(instrumentosTtr) ?: it.instrumentoTtrSeleccionado,
-                instrumentoDevanadosSeleccionado = primeroVigente(instrumentosDevanados) ?: it.instrumentoDevanadosSeleccionado,
-                instrumentoReleSeleccionado = primeroVigente(instrumentosRele) ?: it.instrumentoReleSeleccionado
+                ingenieroNombre = ""
             )
-        }
-        if (empresasPermitidas.isNotEmpty()) {
-            onClienteSeleccionado(empresasPermitidas.first().razonSocial)
-        } else {
-            _uiState.update {
-                it.copy(
-                    clienteNombre = if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
-                        "Sin instalaciones asignadas"
-                    } else {
-                        "Sin empresa asignada"
-                    },
-                    clienteRecibeNombre = "",
-                    clienteRecibeRut = "",
-                    clienteRecibeCargo = "",
-                    idEmpresaSeleccionada = 0L,
-                    instalacionesDisponibles = emptyList(),
-                    instalacionNombre = "",
-                    idInstalacionSeleccionada = 0L,
-                    tagsDisponibles = emptyList(),
-                    idEquipo = 0L,
-                    tagEquipo = "",
-                    tipoEquipo = "",
-                    clasificacionEquipo = "",
-                    marcaEquipo = "",
-                    modeloEquipo = "",
-                    numeroSerieEquipo = "",
-                    potenciaKva = "",
-                    anoFabricacion = "",
-                    tensiones = "",
-                    tapPosition = "",
-                    conexionGrupo = "",
-                    aislacionFilas = emptyList(),
-                    ttrFilas = emptyList(),
-                    devanadoFilas = emptyList(),
-                    contactosFilas = emptyList(),
-                    releFilas = emptyList()
-                )
-            }
         }
         cargarCatalogosRemotos(usuario)
     }
@@ -155,7 +118,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             var errorLectura: String? = null
 
             try {
-                val empresasApi = repositorioRemoto.empresas()
+                val empresasApi = apis.empresas.empresas().exigirCuerpo()
                 empresasRemotas = empresasApi.mapNotNull { empresa ->
                     val id = valorLong(empresa, "idEmpresa", "id") ?: return@mapNotNull null
                     val nombre = valorTexto(empresa, "razonSocial", "nombre", "empresa")
@@ -173,10 +136,10 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val instalacionesApi = when {
                     usuario.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) ->
-                        repositorioRemoto.instalacionesCliente(usuario.idUsuario)
+                        apis.equipos.instalacionesCliente(usuario.idUsuario).exigirCuerpo()
                     usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true) ->
-                        repositorioRemoto.instalacionesTecnico(usuario.idUsuario)
-                    else -> repositorioRemoto.instalaciones()
+                        apis.equipos.instalacionesTecnico(usuario.idUsuario).exigirCuerpo()
+                    else -> apis.equipos.instalaciones().exigirCuerpo()
                 }
                 instalacionesRemotas = instalacionesApi.mapNotNull { mapearInstalacionAsignacion(it) }
                 actualizarCatalogosDeProtocolo(usuario)
@@ -255,32 +218,58 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     private suspend fun cargarInstrumentosRemotos() {
         val tipos = listOf("AISLACION", "TTR", "DEVANADOS", "RELE")
         for (tipo in tipos) {
-            val respuesta = repositorioRemoto.instrumentos(tipo)
+            val respuesta = apis.instrumentos.instrumentos(tipoPrueba = tipo, activo = true)
+                .exigirCuerpo()
             val instrumentos = respuesta.mapNotNull { instrumento ->
                 val id = valorLong(instrumento, "idInstrumento", "id") ?: return@mapNotNull null
                 val modelo = valorTexto(instrumento, "modelo", "nombre")
                 val serie = valorTexto(instrumento, "numeroSerie", "serie")
                 if (modelo.isBlank() && serie.isBlank()) return@mapNotNull null
+                val calibraciones = apis.instrumentos.calibraciones(id).exigirCuerpo()
+                val fechaVencimiento = calibraciones
+                    .mapNotNull { valorTexto(it, "fechaVencimiento").takeIf(String::isNotBlank) }
+                    .maxOrNull()
                 InstrumentoItem(
                     idInstrumento = id,
                     modelo = modelo.ifBlank { "Instrumento $id" },
                     numeroSerie = serie,
-                    fechaVencimiento = valorTexto(
-                        instrumento,
-                        "fechaVencimiento",
-                        "calibracionVencimiento",
-                        "fechaProximaCalibracion"
+                    fechaVencimiento = normalizarFechaInstrumento(
+                        fechaVencimiento ?: valorTexto(
+                            instrumento,
+                            "fechaVencimiento",
+                            "calibracionVencimiento",
+                            "fechaProximaCalibracion"
+                        )
                     ),
                     nombre = valorTexto(instrumento, "nombre").ifBlank { modelo }
                 )
             }
             _uiState.update { actual ->
                 when (tipo) {
-                    "AISLACION" -> actual.copy(instrumentosDisponiblesAislacion = instrumentos)
-                    "TTR" -> actual.copy(instrumentosDisponiblesTtr = instrumentos)
-                    "DEVANADOS" -> actual.copy(instrumentosDisponiblesDevanados = instrumentos)
-                    else -> actual.copy(instrumentosDisponiblesRele = instrumentos)
+                    "AISLACION" -> actual.copy(
+                        instrumentosDisponiblesAislacion = instrumentos,
+                        instrumentoAislacionSeleccionado = instrumentos.firstOrNull() ?: actual.instrumentoAislacionSeleccionado
+                    )
+                    "TTR" -> actual.copy(
+                        instrumentosDisponiblesTtr = instrumentos,
+                        instrumentoTtrSeleccionado = instrumentos.firstOrNull() ?: actual.instrumentoTtrSeleccionado
+                    )
+                    "DEVANADOS" -> actual.copy(
+                        instrumentosDisponiblesDevanados = instrumentos,
+                        instrumentoDevanadosSeleccionado = instrumentos.firstOrNull() ?: actual.instrumentoDevanadosSeleccionado
+                    )
+                    else -> actual.copy(
+                        instrumentosDisponiblesRele = instrumentos,
+                        instrumentoReleSeleccionado = instrumentos.firstOrNull() ?: actual.instrumentoReleSeleccionado
+                    )
                 }
+            }
+
+            private fun normalizarFechaInstrumento(fecha: String): String {
+                val fechaIso = fecha.take(10)
+                return runCatching {
+                    LocalDate.parse(fechaIso).format(DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT))
+                }.getOrDefault(fecha)
             }
         }
     }
@@ -290,10 +279,10 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val equiposApi = when {
                     usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) ->
-                        repositorioRemoto.equiposCliente(usuario?.idUsuario ?: return@launch)
+                        apis.equipos.equiposCliente(usuario?.idUsuario ?: return@launch).exigirCuerpo()
                     usuario?.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true) ->
-                        repositorioRemoto.equiposTecnico(usuario?.idUsuario ?: return@launch)
-                    else -> repositorioRemoto.equiposInstalacion(idInstalacion)
+                        apis.equipos.equiposTecnico(usuario?.idUsuario ?: return@launch).exigirCuerpo()
+                    else -> apis.equipos.equiposInstalacion(idInstalacion).exigirCuerpo()
                 }
                 equiposRemotos = equiposApi.mapNotNull { mapearEquipo(it, idInstalacion) }
                 if (_uiState.value.idInstalacionSeleccionada == idInstalacion) {
@@ -406,55 +395,107 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         return null
     }
 
-    fun tecnicosParaAsignacion(usuario: Usuario?): List<Usuario> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarTecnicosActivos()
-        } else {
+    suspend fun leerTecnicosParaAsignacion(usuario: Usuario?): List<Usuario> {
+        if (!puedeAdministrarAsignaciones(usuario)) return emptyList()
+        return try {
+            tecnicosRemotos = apis.usuarios.usuarios().exigirCuerpo()
+                .map(::convertirUsuario)
+                .filter { it.activo && it.rolCodigo == Rol.CODIGO_TECNICO }
+            _errorLecturaRemota.value = null
+            tecnicosRemotos
+        } catch (error: ApiRequestException) {
+            mostrarErrorLectura("No se pudieron cargar los técnicos: ${error.message}")
+            emptyList()
+        } catch (error: IOException) {
+            mostrarErrorLectura("No se pudieron cargar los técnicos: ${error.message}")
+            emptyList()
+        } catch (error: RuntimeException) {
+            mostrarErrorLectura("No se pudieron interpretar los técnicos recibidos.")
             emptyList()
         }
+    }
 
-    fun clientesConEmpresaParaInstalaciones(usuario: Usuario?): List<CuentaEmpresaLocal> =
-        if (puedeAdministrarAsignaciones(usuario) && usuario != null) {
-            db.listarCuentasClienteConEmpresa(usuario.idUsuario)
-        } else {
-            emptyList()
+    private fun convertirUsuario(respuesta: cl.duocuc.Induztek.data.remote.UsuarioResponse): Usuario {
+        val rolTexto = respuesta.rolNombre.uppercase().replace(" ", "_").replace("-", "_")
+        val rol = when {
+            rolTexto.contains("JEFE") && rolTexto.contains("TECN") -> Rol.CODIGO_JEFE_TECNICO
+            rolTexto.contains("INGEN") -> Rol.CODIGO_INGENIERO
+            rolTexto.contains("TECN") -> Rol.CODIGO_TECNICO
+            rolTexto.contains("CLIENT") -> Rol.CODIGO_CLIENTE
+            else -> rolTexto
         }
+        val nombre = listOf(respuesta.nombre, respuesta.apellido.orEmpty())
+            .filter(String::isNotBlank).joinToString(" ")
+        return Usuario(
+            idUsuario = respuesta.id,
+            rut = respuesta.rut,
+            nombre = nombre,
+            correo = respuesta.correo,
+            telefono = respuesta.telefono.orEmpty(),
+            rolCodigo = rol,
+            idEmpresaCliente = respuesta.empresaId,
+            activo = respuesta.activo,
+            debeCambiarContrasena = respuesta.debeCambiarClave
+        )
+    }
 
-    fun instalacionesDeClienteParaGestion(
-        idCliente: Long,
-        usuario: Usuario?
-    ): List<InstalacionCatalogoLocal> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarInstalacionesDeCuentaCliente(idCliente)
-        } else {
+    suspend fun leerClientesConEmpresaParaInstalaciones(usuario: Usuario?): List<CuentaEmpresaLocal> {
+        if (!puedeAdministrarAsignaciones(usuario)) return emptyList()
+        return try {
+            cuentasClienteRemotas = apis.usuarios.usuarios().exigirCuerpo()
+                .filter { it.activo && it.rolNombre.contains("CLIENT", ignoreCase = true) }
+                .mapNotNull { respuesta ->
+                    val idEmpresa = respuesta.empresaId ?: return@mapNotNull null
+                    CuentaEmpresaLocal(
+                        idUsuario = respuesta.id,
+                        nombreUsuario = listOf(respuesta.nombre, respuesta.apellido.orEmpty())
+                            .filter(String::isNotBlank).joinToString(" "),
+                        idEmpresa = idEmpresa,
+                        razonSocial = respuesta.empresaNombre.orEmpty()
+                    )
+                }
+            _errorLecturaRemota.value = null
+            cuentasClienteRemotas
+        } catch (error: ApiRequestException) {
+            mostrarErrorLectura("No se pudieron cargar las cuentas de clientes: ${error.message}")
+            emptyList()
+        } catch (error: IOException) {
+            mostrarErrorLectura("No se pudieron cargar las cuentas de clientes: ${error.message}")
+            emptyList()
+        } catch (error: RuntimeException) {
+            mostrarErrorLectura("No se pudieron interpretar las cuentas de clientes recibidas.")
             emptyList()
         }
+    }
 
     suspend fun leerInstalacionesDeClienteParaGestion(
         idCliente: Long,
         usuario: Usuario?
     ): List<InstalacionCatalogoLocal> {
-        val locales = instalacionesDeClienteParaGestion(idCliente, usuario)
-        if (locales.isEmpty() && !puedeAdministrarAsignaciones(usuario)) return emptyList()
+        if (!puedeAdministrarAsignaciones(usuario)) return emptyList()
         try {
-            val remoto = repositorioRemoto.instalacionesCliente(idCliente)
+            val remoto = apis.equipos.instalacionesCliente(idCliente).exigirCuerpo()
             val instalaciones = remoto.mapNotNull { registro ->
                 val id = valorLong(registro, "idInstalacion", "id") ?: return@mapNotNull null
                 val nombre = valorTexto(registro, "nombre", "nombreInstalacion")
                 if (nombre.isBlank()) return@mapNotNull null
                 InstalacionCatalogoLocal(id, nombre)
             }
+            val instalacionesAsignacion = remoto.mapNotNull(::mapearInstalacionAsignacion)
+            instalacionesRemotas = (instalacionesRemotas.filterNot { existente ->
+                instalacionesAsignacion.any { it.idInstalacion == existente.idInstalacion }
+            } + instalacionesAsignacion)
             _errorLecturaRemota.value = null
             return instalaciones
         } catch (error: ApiRequestException) {
             mostrarErrorLectura("No se pudieron cargar las instalaciones: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: java.io.IOException) {
             mostrarErrorLectura("No se pudieron cargar las instalaciones: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: RuntimeException) {
             mostrarErrorLectura("No se pudieron interpretar las instalaciones recibidas.")
-            return locales
+            return emptyList()
         }
     }
 
@@ -462,79 +503,58 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         idInstalacion: Long,
         usuario: Usuario?
     ): List<EquipoCatalogoLocal> {
-        val locales = equiposDeInstalacionParaGestion(idInstalacion, usuario)
-        if (locales.isEmpty() && !puedeAdministrarAsignaciones(usuario)) return emptyList()
+        if (!puedeAdministrarAsignaciones(usuario)) return emptyList()
         try {
-            val remoto = repositorioRemoto.equiposInstalacion(idInstalacion)
+            val remoto = apis.equipos.equiposInstalacion(idInstalacion).exigirCuerpo()
             val equipos = remoto.mapNotNull { mapearEquipo(it, idInstalacion) }
+            equiposRemotos = (equiposRemotos.filterNot { it.idInstalacion == idInstalacion } + equipos)
             _errorLecturaRemota.value = null
             return equipos
         } catch (error: ApiRequestException) {
             mostrarErrorLectura("No se pudieron cargar los equipos: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: java.io.IOException) {
             mostrarErrorLectura("No se pudieron cargar los equipos: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: RuntimeException) {
             mostrarErrorLectura("No se pudieron interpretar los equipos recibidos.")
-            return locales
+            return emptyList()
         }
     }
 
-    fun crearInstalacionParaCliente(
+    suspend fun crearInstalacionParaCliente(
         idCliente: Long,
         nombre: String,
         usuario: Usuario?
     ): Boolean {
         val responsable = usuario ?: return false
         if (!puedeAdministrarAsignaciones(responsable)) return false
-        val creada = db.crearInstalacionAdministrativa(responsable.idUsuario, idCliente, nombre)
-        if (!creada) {
-            return false
+        val cuenta = cuentasClienteRemotas.firstOrNull { it.idUsuario == idCliente } ?: return false
+        val solicitud = JsonObject().apply {
+            addProperty("idEmpresa", cuenta.idEmpresa)
+            addProperty("idUsuarioCliente", idCliente)
+            addProperty("nombre", nombre)
+            addProperty("activa", true)
         }
-        val cuenta = db.listarCuentasClienteConEmpresa(responsable.idUsuario)
-            .firstOrNull { it.idUsuario == idCliente }
-        if (cuenta != null) {
-            val instalacionLocal = db.listarInstalacionesDeCuentaCliente(idCliente)
-                .firstOrNull { it.nombre.equals(nombre, ignoreCase = true) }
-            val solicitud = JsonObject()
-            solicitud.addProperty("idEmpresa", cuenta.idEmpresa)
-            solicitud.addProperty("idUsuarioCliente", idCliente)
-            solicitud.addProperty("nombre", nombre)
-            solicitud.addProperty("activa", true)
-            viewModelScope.launch {
-                try {
-                    repositorioRemoto.crearInstalacion(solicitud, instalacionLocal?.idInstalacion)
-                } catch (error: ApiRequestException) {
-                    _uiState.update {
-                        it.copy(mensajeErrorFormulario = "Sincronización: ${error.message}")
-                    }
-                } catch (_: java.io.IOException) {
-                    _uiState.update {
-                        it.copy(
-                            mensajeErrorFormulario = "Sincronización: no se pudo enviar la instalación al servidor."
-                        )
-                    }
-                }
-            }
+        return try {
+            apis.equipos.crearInstalacion(solicitud).exigirExito()
+            true
+        } catch (error: ApiRequestException) {
+            mostrarErrorLectura("El servidor rechazó la instalación: ${error.message}")
+            false
+        } catch (error: IOException) {
+            mostrarErrorLectura("No se pudo crear la instalación en el servidor: ${error.message}")
+            false
+        } catch (error: RuntimeException) {
+            mostrarErrorLectura("No se pudo interpretar la respuesta al crear la instalación.")
+            false
         }
-        return true
     }
 
     fun tiposEquipoParaGestion(usuario: Usuario?): List<TipoEquipoCatalogoLocal> =
-        if (puedeAdministrarAsignaciones(usuario)) db.listarTiposEquipo() else emptyList()
+        if (puedeAdministrarAsignaciones(usuario)) TiposEquipoCatalogo.todos else emptyList()
 
-    fun equiposDeInstalacionParaGestion(
-        idInstalacion: Long,
-        usuario: Usuario?
-    ): List<EquipoCatalogoLocal> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarEquiposPorInstalacion(idInstalacion)
-        } else {
-            emptyList()
-        }
-
-    fun crearEquipoParaInstalacion(
+    suspend fun crearEquipoParaInstalacion(
         idInstalacion: Long,
         idTipoEquipo: Long,
         tag: String,
@@ -560,35 +580,15 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 mensajeError = "Solo Ingeniería o Jefatura Técnica pueden registrar equipos."
             )
         }
-        val resultado = db.crearEquipoAdministrativo(
-            actorId = responsable.idUsuario,
-            idInstalacion = idInstalacion,
-            idTipoEquipo = idTipoEquipo,
-            tag = tag,
-            marca = marca,
-            modelo = modelo,
-            numeroSerie = numeroSerie,
-            potenciaKva = potenciaKva,
-            tensiones = tensiones,
-            anoFabricacion = anoFabricacion,
-            posicionTap = posicionTap,
-            grupoConexion = grupoConexion,
-            resistenciaContactoMaxUohm = resistenciaContactoMaxUohm
-        )
-        if (!resultado.exitosa) {
-            return resultado
-        }
-
-        val instalacionLocal = db.listarInstalacionesParaAsignacion()
-            .firstOrNull { it.idInstalacion == idInstalacion }
-        val tipoEquipo = db.listarTiposEquipo().firstOrNull { it.idTipoEquipo == idTipoEquipo }
-        val instalacionEmpresa = db.listarClientes()
-            .firstOrNull { it.razonSocial == instalacionLocal?.empresa }
+        val instalacion = instalacionesRemotas.firstOrNull { it.idInstalacion == idInstalacion }
+            ?: return CrearEquipoResultado(campoError = "general", mensajeError = "La instalación ya no está disponible.")
+        val tipoEquipo = TiposEquipoCatalogo.todos.firstOrNull { it.idTipoEquipo == idTipoEquipo }
+            ?: return CrearEquipoResultado(campoError = "general", mensajeError = "Selecciona un tipo de equipo válido.")
         val solicitud = JsonObject()
         solicitud.addProperty("codigo", tag)
         solicitud.addProperty("tag", tag)
-        solicitud.addProperty("tipo", tipoEquipo?.nombre.orEmpty())
-        solicitud.addProperty("clasificacion", tipoEquipo?.clasificacion.orEmpty())
+        solicitud.addProperty("tipo", tipoEquipo.nombre)
+        solicitud.addProperty("clasificacion", tipoEquipo.clasificacion)
         solicitud.addProperty("marca", marca)
         solicitud.addProperty("modelo", modelo)
         solicitud.addProperty("numeroSerie", numeroSerie)
@@ -598,113 +598,89 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         solicitud.addProperty("posicionTap", posicionTap)
         solicitud.addProperty("grupoConexion", grupoConexion)
         solicitud.addProperty("resistenciaContactoMaxUohm", resistenciaContactoMaxUohm)
-        solicitud.addProperty("instalacion", instalacionLocal?.nombre.orEmpty())
+        solicitud.addProperty("instalacion", instalacion.nombre)
         solicitud.addProperty("idInstalacion", idInstalacion)
         solicitud.addProperty("idCliente", idCliente)
-        if (instalacionEmpresa == null) {
-            _uiState.update {
-                it.copy(
-                    mensajeErrorFormulario = "Sincronización: el equipo quedó guardado localmente, pero no se pudo resolver su empresa."
-                )
+        return try {
+            val creado = apis.equipos.crearEquipo(solicitud).exigirCuerpo()
+            val id = if (creado.isJsonObject) {
+                valorLong(creado.asJsonObject, "idEquipo", "id")
+            } else null
+            if (id == null) {
+                CrearEquipoResultado(campoError = "general", mensajeError = "El servidor no devolvió el identificador del equipo.")
+            } else {
+                CrearEquipoResultado(idEquipo = id)
             }
-        } else {
-            viewModelScope.launch {
-                try {
-                    repositorioRemoto.crearEquipo(solicitud, resultado.idEquipo)
-                } catch (error: ApiRequestException) {
-                    _uiState.update {
-                        it.copy(mensajeErrorFormulario = "Sincronización: ${error.message}")
-                    }
-                } catch (_: java.io.IOException) {
-                    _uiState.update {
-                        it.copy(
-                            mensajeErrorFormulario = "Sincronización: no se pudo enviar el equipo al servidor."
-                        )
-                    }
-                }
-            }
+        } catch (error: ApiRequestException) {
+            CrearEquipoResultado(campoError = "general", mensajeError = "El servidor rechazó el equipo: ${error.message}")
+        } catch (error: IOException) {
+            CrearEquipoResultado(campoError = "general", mensajeError = "No se pudo crear el equipo en el servidor: ${error.message}")
+        } catch (error: RuntimeException) {
+            CrearEquipoResultado(campoError = "general", mensajeError = "No se pudo interpretar la respuesta al crear el equipo.")
         }
-        return resultado
     }
 
-    fun instalacionesParaAsignacion(usuario: Usuario?) =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarInstalacionesParaAsignacion()
-        } else {
-            emptyList()
-        }
-
     suspend fun leerInstalacionesParaAsignacion(usuario: Usuario?): List<InstalacionAsignacionLocal> {
-        val locales = instalacionesParaAsignacion(usuario)
         if (!puedeAdministrarAsignaciones(usuario)) return emptyList()
         try {
-            val respuesta = repositorioRemoto.instalaciones()
+            if (empresasRemotas.isEmpty()) {
+                empresasRemotas = apis.empresas.empresas().exigirCuerpo().mapNotNull { empresa ->
+                    val id = valorLong(empresa, "idEmpresa", "id") ?: return@mapNotNull null
+                    val nombre = valorTexto(empresa, "razonSocial", "nombre", "empresa")
+                    if (nombre.isBlank()) return@mapNotNull null
+                    ClienteCatalogoLocal(id, nombre)
+                }
+            }
+            val respuesta = apis.equipos.instalaciones().exigirCuerpo()
             val instalaciones = respuesta.mapNotNull { mapearInstalacionAsignacion(it) }
+            instalacionesRemotas = instalaciones
             _errorLecturaRemota.value = null
             return instalaciones
         } catch (error: ApiRequestException) {
             mostrarErrorLectura("No se pudieron cargar las instalaciones para asignar: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: java.io.IOException) {
             mostrarErrorLectura("No se pudieron cargar las instalaciones para asignar: ${error.message}")
-            return locales
+            return emptyList()
         } catch (error: RuntimeException) {
             mostrarErrorLectura("No se pudieron interpretar las instalaciones recibidas.")
-            return locales
+            return emptyList()
         }
     }
 
-    fun idsAsignadosATecnico(idTecnico: Long, usuario: Usuario?): Set<Long> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarIdsInstalacionesTecnico(idTecnico)
-        } else {
-            emptySet()
-        }
-
     suspend fun leerIdsAsignadosATecnico(idTecnico: Long, usuario: Usuario?): Set<Long> {
-        val locales = idsAsignadosATecnico(idTecnico, usuario)
         if (!puedeAdministrarAsignaciones(usuario)) return emptySet()
         try {
-            val respuesta = repositorioRemoto.asignacionesTecnico(idTecnico)
-            val ids = respuesta.mapNotNull { registro ->
-                idInstalacionDeAsignacion(registro)
-            }.toSet()
+            val ids = apis.equipos.idsAsignacionesTecnico(idTecnico).exigirCuerpo().toSet()
             _errorLecturaRemota.value = null
             return ids
         } catch (error: ApiRequestException) {
             mostrarErrorLectura("No se pudieron cargar las asignaciones: ${error.message}")
-            return locales
+            return emptySet()
         } catch (error: java.io.IOException) {
             mostrarErrorLectura("No se pudieron cargar las asignaciones: ${error.message}")
-            return locales
+            return emptySet()
         } catch (error: RuntimeException) {
             mostrarErrorLectura("No se pudieron interpretar las asignaciones recibidas.")
-            return locales
+            return emptySet()
         }
     }
-
-    fun instalacionesAsignadasAOtrosTecnicos(
-        idTecnico: Long,
-        usuario: Usuario?
-    ): Map<Long, String> =
-        if (puedeAdministrarAsignaciones(usuario)) {
-            db.listarTecnicosPropietariosDeInstalaciones(idTecnico)
-        } else {
-            emptyMap()
-        }
 
     suspend fun leerInstalacionesAsignadasAOtrosTecnicos(
         idTecnico: Long,
         usuario: Usuario?
     ): Map<Long, String> {
-        val locales = instalacionesAsignadasAOtrosTecnicos(idTecnico, usuario)
         if (!puedeAdministrarAsignaciones(usuario)) return emptyMap()
         try {
             val asignaciones = mutableMapOf<Long, String>()
-            val tecnicos = db.listarTecnicosActivos()
+            val tecnicos = if (tecnicosRemotos.isEmpty()) {
+                leerTecnicosParaAsignacion(usuario)
+            } else {
+                tecnicosRemotos
+            }
             for (tecnico in tecnicos) {
                 if (tecnico.idUsuario == idTecnico) continue
-                val respuesta = repositorioRemoto.asignacionesTecnico(tecnico.idUsuario)
+                val respuesta = apis.equipos.asignacionesTecnico(tecnico.idUsuario).exigirCuerpo()
                 for (registro in respuesta) {
                     val idInstalacion = idInstalacionDeAsignacion(registro)
                     if (idInstalacion != null) {
@@ -716,13 +692,13 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             return asignaciones
         } catch (error: ApiRequestException) {
             mostrarErrorLectura("No se pudieron cargar las asignaciones existentes: ${error.message}")
-            return locales
+            return emptyMap()
         } catch (error: java.io.IOException) {
             mostrarErrorLectura("No se pudieron cargar las asignaciones existentes: ${error.message}")
-            return locales
+            return emptyMap()
         } catch (error: RuntimeException) {
             mostrarErrorLectura("No se pudieron interpretar las asignaciones recibidas.")
-            return locales
+            return emptyMap()
         }
     }
 
@@ -730,47 +706,35 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         usuario?.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true) ||
                 usuario?.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true)
 
-    fun guardarAsignacionesTecnico(
+    suspend fun guardarAsignacionesTecnico(
         idTecnico: Long,
         idsInstalaciones: Set<Long>,
         usuario: Usuario?
     ): Boolean {
         val responsable = usuario ?: return false
         if (!puedeAdministrarAsignaciones(responsable)) return false
-        val guardadas = db.guardarAsignacionesTecnico(
-            idTecnico,
-            idsInstalaciones,
-            responsable.idUsuario
-        )
-        if (guardadas) {
-            viewModelScope.launch {
-                try {
-                    repositorioRemoto.actualizarAsignaciones(
-                        idTecnico,
-                        responsable.idUsuario,
-                        idsInstalaciones.toList()
-                    )
-                } catch (error: ApiRequestException) {
-                    _uiState.update {
-                        it.copy(mensajeErrorFormulario = "Sincronización: ${error.message}")
-                    }
-                } catch (_: java.io.IOException) {
-                    _uiState.update {
-                        it.copy(
-                            mensajeErrorFormulario = "Sincronización: no se pudieron enviar las asignaciones."
-                        )
-                    }
-                }
-            }
+        return try {
+            apis.equipos.asignarInstalaciones(
+                idTecnico,
+                SolicitudAsignacion(responsable.idUsuario, idsInstalaciones.toList())
+            ).exigirExito()
+            true
+        } catch (error: ApiRequestException) {
+            mostrarErrorLectura("El servidor rechazó las asignaciones: ${error.message}")
+            false
+        } catch (error: IOException) {
+            mostrarErrorLectura("No se pudieron guardar las asignaciones: ${error.message}")
+            false
+        } catch (error: RuntimeException) {
+            mostrarErrorLectura("No se pudo interpretar la respuesta al guardar las asignaciones.")
+            false
         }
-        return guardadas
     }
 
     private fun obtenerHoraActual(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
     fun onClienteSeleccionado(cliente: String) {
-        val empresaLocal = db.listarClientes().firstOrNull { it.razonSocial == cliente }
-        val empresa = empresaLocal ?: empresasRemotas.firstOrNull {
+        val empresa = empresasRemotas.firstOrNull {
             it.razonSocial.equals(cliente, ignoreCase = true)
         } ?: return
         val usuario = usuarioCatalogoActual
@@ -778,29 +742,13 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) &&
             empresa.idEmpresa != usuario?.idEmpresaCliente
         ) return
-        val instalacionesLocales = if (
-            usuario != null && usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)
-        ) {
-            db.listarInstalacionesTecnico(empresa.idEmpresa, usuario.idUsuario)
-        } else {
-            db.listarInstalacionesCliente(empresa.idEmpresa)
-        }
-        val instalacionesApi = if (usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
+        val instalaciones = if (usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
             instalacionesRemotas
         } else {
             instalacionesRemotas.filter { instalacion ->
-                instalacion.empresa.equals(cliente, ignoreCase = true) ||
-                        (instalacionesRemotas.size == 1 && instalacion.empresa.isBlank())
+                instalacion.empresa.equals(cliente, ignoreCase = true)
             }
         }
-        val instalaciones = if (instalacionesApi.isNotEmpty()) {
-            instalacionesApi
-        } else {
-            instalacionesLocales.map {
-                InstalacionAsignacionLocal(it.idInstalacion, it.nombre, cliente)
-            }
-        }
-        val contacto = if (empresaLocal == null) null else db.buscarContactoEmpresa(empresa.idEmpresa)
 
         _uiState.update {
             it.copy(
@@ -827,8 +775,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 devanadoFilas = emptyList(),
                 contactosFilas = emptyList(),
                 releFilas = emptyList(),
-                clienteRecibeNombre = contacto?.nombre.orEmpty(),
-                clienteRecibeRut = contacto?.rut.orEmpty(),
+                clienteRecibeNombre = "",
+                clienteRecibeRut = "",
                 clienteRecibeCargo = "",
                 errorRutClienteRecibe = false
             )
@@ -843,26 +791,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             usuario?.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true) &&
             estado.idEmpresaSeleccionada != usuario?.idEmpresaCliente
         ) return
-        val instalacionesLocales = if (
-            usuario != null && usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)
-        ) {
-            db.listarInstalacionesTecnico(estado.idEmpresaSeleccionada, usuario.idUsuario)
-        } else {
-            db.listarInstalacionesCliente(estado.idEmpresaSeleccionada)
-        }
-        val instalacionLocal = instalacionesLocales.firstOrNull { it.nombre == instalacion }
         val instalacionRemota = instalacionesRemotas.firstOrNull { it.nombre == instalacion }
-        var idInstalacion = instalacionRemota?.idInstalacion
-        if (idInstalacion == null) {
-            idInstalacion = instalacionLocal?.idInstalacion
-        }
-        if (idInstalacion == null) return
-        val equiposLocales = db.listarEquiposPorInstalacion(idInstalacion)
-        val equiposDisponibles = if (equiposRemotos.any { it.idInstalacion == idInstalacion }) {
-            equiposRemotos.filter { it.idInstalacion == idInstalacion }
-        } else {
-            equiposLocales
-        }
+        val idInstalacion = instalacionRemota?.idInstalacion ?: return
+        val equiposDisponibles = equiposRemotos.filter { it.idInstalacion == idInstalacion }
         val tagsList = equiposDisponibles.map { it.tag }
 
         _uiState.update {
@@ -898,15 +829,10 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onTagEquipoSeleccionado(tag: String) {
         val estado = _uiState.value
-        var equipo = db.listarEquiposPorInstalacion(estado.idInstalacionSeleccionada)
-            .firstOrNull { it.tag == tag }
-        if (equipo == null) {
-            equipo = equiposRemotos.firstOrNull {
-                it.idInstalacion == estado.idInstalacionSeleccionada && it.tag == tag
-            }
+        val equipo = equiposRemotos.firstOrNull {
+            it.idInstalacion == estado.idInstalacionSeleccionada && it.tag == tag
         }
         if (equipo == null) return
-        val lecturaAnt = db.obtenerUltimaLecturaAnterior(equipo.idEquipo, "LECTURA_1MIN")
 
         val aislacionesNuevas = when (equipo.tipo) {
             "Transformador" -> listOf(
@@ -963,7 +889,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 tensiones = equipo.tensiones,
                 tapPosition = equipo.posicionTap,
                 conexionGrupo = equipo.grupoConexion,
-                lecturaAnterior1Min = lecturaAnt,
+                lecturaAnterior1Min = null,
                 aislacionFilas = aislacionesNuevas,
                 ttrFilas = ttrNuevas,
                 devanadoFilas = if (equipo.tipo == "Transformador") listOf(
@@ -991,7 +917,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
     fun recargarHistorial(idEquipo: Long) {
         val usuario = usuarioCatalogoActual
         if (usuario == null) {
-            _historial.value = db.listarProtocolosPorEquipo(idEquipo)
+            _historial.value = emptyList()
         } else {
             cargarHistorialEquipo(idEquipo, usuario)
         }
@@ -1003,8 +929,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             _historial.value = emptyList()
             return
         }
-        val protocolosLocales = protocolosLocalesVisibles(idEquipo, usuarioActual)
-        _historial.value = protocolosLocales
+        _historial.value = emptyList()
         _errorLecturaRemota.value = null
 
         viewModelScope.launch {
@@ -1012,7 +937,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 var respuesta = emptyList<JsonObject>()
                 val codigoRol = usuarioActual.rolCodigo
                 if (codigoRol.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
-                    respuesta = repositorioRemoto.protocolosCliente(usuarioActual.idUsuario)
+                    respuesta = apis.protocolos.protocolosCliente(usuarioActual.idUsuario).exigirCuerpo()
                     if (idEquipo != 0L) {
                         respuesta = respuesta.filter { protocolo ->
                             idEquipoDeProtocolo(protocolo) == idEquipo
@@ -1020,23 +945,27 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 } else if (codigoRol.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
                     if (idEquipo != 0L) {
-                        val equiposTecnico = repositorioRemoto.equiposTecnico(usuarioActual.idUsuario)
+                        val equiposTecnico = apis.equipos.equiposTecnico(usuarioActual.idUsuario)
+                            .exigirCuerpo()
                         val puedeVer = equiposTecnico.any {
                             valorLong(it, "idEquipo", "id") == idEquipo
                         }
-                        if (!puedeVer && !db.tecnicoPuedeVerEquipo(usuarioActual.idUsuario, idEquipo)) {
+                        if (!puedeVer) {
                             _historial.value = emptyList()
                             _errorLecturaRemota.value = null
                             return@launch
                         }
-                        respuesta = repositorioRemoto.protocolosEquipo(idEquipo)
+                        respuesta = apis.protocolos.protocolosEquipo(idEquipo).exigirCuerpo()
                     } else {
-                        val visitasTecnico = repositorioRemoto.visitas(null, usuarioActual.idUsuario)
+                        val visitasTecnico = apis.equipos.visitas(tecnico = usuarioActual.idUsuario)
+                            .exigirCuerpo()
                         val protocolosVisita = mutableListOf<JsonObject>()
                         for (visita in visitasTecnico) {
                             val idVisita = valorLong(visita, "idVisita", "id")
                             if (idVisita != null) {
-                                protocolosVisita.addAll(repositorioRemoto.protocolosVisita(idVisita))
+                                protocolosVisita.addAll(
+                                    apis.protocolos.protocolosVisita(idVisita).exigirCuerpo()
+                                )
                             }
                         }
                         respuesta = protocolosVisita
@@ -1046,9 +975,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     codigoRol.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
                 ) {
                     respuesta = if (idEquipo == 0L) {
-                        repositorioRemoto.protocolos()
+                        apis.protocolos.protocolos().exigirCuerpo()
                     } else {
-                        repositorioRemoto.protocolosEquipo(idEquipo)
+                        apis.protocolos.protocolosEquipo(idEquipo).exigirCuerpo()
                     }
                 }
 
@@ -1067,38 +996,36 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
             } catch (error: ApiRequestException) {
-                _historial.value = protocolosLocales
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo actualizar el historial: ${error.message}")
             } catch (error: java.io.IOException) {
-                _historial.value = protocolosLocales
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo actualizar el historial: ${error.message}")
             } catch (error: RuntimeException) {
-                _historial.value = protocolosLocales
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo interpretar el historial recibido.")
             }
         }
     }
 
     fun cargarProtocolosCliente(usuario: Usuario) {
-        val idEmpresa = usuario.idEmpresaCliente
-        val historialLocal = if (idEmpresa == null) emptyList() else db.listarProtocolosCliente(idEmpresa)
-        _historial.value = historialLocal
+        _historial.value = emptyList()
         _errorLecturaRemota.value = null
         viewModelScope.launch {
             try {
-                val respuesta = repositorioRemoto.protocolosCliente(usuario.idUsuario)
+                val respuesta = apis.protocolos.protocolosCliente(usuario.idUsuario).exigirCuerpo()
                 val protocolos = respuesta.mapNotNull { mapearProtocoloRemoto(it) }
                 protocolosRemotos = protocolos
                 _historial.value = protocolos
                 _errorLecturaRemota.value = null
             } catch (error: ApiRequestException) {
-                _historial.value = historialLocal
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo actualizar el portal de protocolos: ${error.message}")
             } catch (error: java.io.IOException) {
-                _historial.value = historialLocal
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo actualizar el portal de protocolos: ${error.message}")
             } catch (error: RuntimeException) {
-                _historial.value = historialLocal
+                _historial.value = emptyList()
                 mostrarErrorLectura("No se pudo interpretar el historial recibido.")
             }
         }
@@ -1106,50 +1033,28 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var protocolosRemotos = emptyList<ProtocoloTerreno>()
 
-    private fun protocolosLocalesVisibles(idEquipo: Long, usuario: Usuario): List<ProtocoloTerreno> {
-        if (idEquipo != 0L) {
-            if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
-                if (!db.tecnicoPuedeVerEquipo(usuario.idUsuario, idEquipo)) return emptyList()
-                return db.listarProtocolosPorEquipo(idEquipo)
-            }
-            if (usuario.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
-                val idEmpresa = usuario.idEmpresaCliente ?: return emptyList()
-                return db.listarProtocolosEquipoCliente(idEquipo, idEmpresa)
-            }
-            return db.listarProtocolosPorEquipo(idEquipo)
-        }
-        if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true)) {
-            return db.listarProtocolosTecnico(usuario.idUsuario)
-        }
-        if (usuario.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
-            val idEmpresa = usuario.idEmpresaCliente ?: return emptyList()
-            return db.listarProtocolosCliente(idEmpresa)
-        }
-        if (
-            usuario.rolCodigo.equals(Rol.CODIGO_INGENIERO, ignoreCase = true) ||
-            usuario.rolCodigo.equals(Rol.CODIGO_JEFE_TECNICO, ignoreCase = true)
-        ) {
-            return db.listarProtocolosTodos()
-        }
-        return emptyList()
-    }
-
     private fun mapearProtocoloRemoto(registro: JsonObject): ProtocoloTerreno? {
-        val id = valorLong(registro, "idProtocolo", "id") ?: return null
-        val equipoJson = registro.get("equipo")
+        val protocoloJson = registro.get("protocolo")
+        val datosProtocolo = if (protocoloJson != null && protocoloJson.isJsonObject) {
+            protocoloJson.asJsonObject
+        } else {
+            registro
+        }
+        val id = valorLong(datosProtocolo, "idProtocolo", "id") ?: return null
+        val equipoJson = registro.get("equipo") ?: datosProtocolo.get("equipo")
         val equipo = if (equipoJson != null && equipoJson.isJsonObject) equipoJson.asJsonObject else null
-        val instalacionJson = registro.get("instalacion")
+        val instalacionJson = registro.get("instalacion") ?: datosProtocolo.get("instalacion")
         val instalacion = if (instalacionJson != null && instalacionJson.isJsonObject) {
             instalacionJson.asJsonObject
         } else {
             null
         }
-        val tecnicoJson = registro.get("tecnico")
+        val tecnicoJson = registro.get("tecnico") ?: datosProtocolo.get("tecnico")
         val tecnico = if (tecnicoJson != null && tecnicoJson.isJsonObject) tecnicoJson.asJsonObject else null
-        val clienteJson = registro.get("cliente")
+        val clienteJson = registro.get("cliente") ?: datosProtocolo.get("cliente")
         val cliente = if (clienteJson != null && clienteJson.isJsonObject) clienteJson.asJsonObject else null
-        val fecha = valorFecha(registro, "fechaHora", "fechaHoraPrueba", "fechaRegistro", "createdAt")
-        var idEquipo = valorLong(registro, "idEquipo")
+        val fecha = valorFecha(datosProtocolo, "fechaHora", "fechaHoraPrueba", "fechaRegistro", "createdAt")
+        var idEquipo = valorLong(datosProtocolo, "idEquipo")
         if (idEquipo == null && equipo != null) {
             idEquipo = valorLong(equipo, "idEquipo", "id")
         }
@@ -1158,9 +1063,16 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         }
         return ProtocoloTerreno(
             idProtocolo = id,
-            numeroProtocolo = valorTexto(registro, "numeroProtocolo", "numero").ifBlank { "PT-$id" },
+            numeroProtocolo = valorTexto(datosProtocolo, "numeroProtocolo", "numero").ifBlank { "PT-$id" },
             idEquipo = idEquipo,
-            tagEquipo = valorTextoAnidado(registro, "tagEquipo", equipo, "tag", "codigo"),
+            tagEquipo = valorTextoAnidado(
+                registro,
+                "tagEquipo",
+                equipo,
+                "tag",
+                "codigo",
+                clavesDirectasAlternativas = arrayOf("codigoEquipo")
+            ),
             tipoEquipo = valorTextoAnidado(registro, "tipoEquipo", equipo, "tipo", "tipoEquipo"),
             marcaEquipo = valorTextoAnidado(registro, "marcaEquipo", equipo, "marca"),
             modeloEquipo = valorTextoAnidado(registro, "modeloEquipo", equipo, "modelo"),
@@ -1178,25 +1090,61 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                 "nombre",
                 clavesDirectasAlternativas = arrayOf("empresaNombre")
             ),
-            instalacionNombre = valorTextoAnidado(registro, "instalacionNombre", instalacion, "nombre"),
-            tecnicoNombre = valorTextoAnidado(registro, "tecnicoNombre", tecnico, "nombre", "nombreCompleto"),
+            instalacionNombre = valorTextoAnidado(
+                registro,
+                "instalacionNombre",
+                instalacion,
+                "nombre",
+                clavesDirectasAlternativas = arrayOf("instalacion")
+            ),
+            tecnicoNombre = valorTextoAnidado(
+                registro,
+                "tecnicoNombre",
+                tecnico,
+                "nombre",
+                "nombreCompleto",
+                clavesDirectasAlternativas = arrayOf("nombreTecnico")
+            ),
             ingenieroNombre = valorTexto(registro, "ingenieroNombre"),
             fechaHora = fecha,
             fechaRegistro = valorFecha(registro, "fechaRegistro", "createdAt").ifBlank { fecha },
-            temperaturaC = valorDouble(registro, "temperaturaC") ?: 0.0,
-            humedadPct = valorDouble(registro, "humedadPct") ?: 0.0,
-            estado = valorTexto(registro, "estado"),
-            resultadoGlobal = valorTexto(registro, "resultadoGlobal", "resultado"),
-            resultadoEvaluado = valorTexto(registro, "resultadoEvaluado", "resultadoGlobal", "resultado"),
-            observaciones = valorTexto(registro, "observaciones").ifBlank { null },
-            tipoVisita = valorTexto(registro, "tipoVisita").ifBlank { "Solo pruebas" },
-            descripcionMantenimiento = valorTexto(registro, "descripcionMantenimiento").ifBlank { null },
-            receptorNombre = valorTexto(registro, "receptorNombre"),
-            receptorRut = valorTexto(registro, "receptorRut"),
-            receptorCargo = valorTexto(registro, "receptorCargo"),
-            numeroOt = valorTexto(registro, "numeroOt"),
-            fechaRecepcion = valorTexto(registro, "fechaRecepcion"),
-            idVisita = valorLong(registro, "idVisita") ?: 0L
+            temperaturaC = valorDouble(datosProtocolo, "temperaturaC") ?: 0.0,
+            humedadPct = valorDouble(datosProtocolo, "humedadPct") ?: 0.0,
+            estado = valorTexto(datosProtocolo, "estado"),
+            resultadoGlobal = valorTexto(datosProtocolo, "resultadoGlobal", "resultado"),
+            resultadoEvaluado = valorTexto(datosProtocolo, "resultadoEvaluado", "resultadoGlobal", "resultado"),
+            observaciones = valorTexto(datosProtocolo, "observaciones").ifBlank { null },
+            tipoVisita = valorTexto(datosProtocolo, "tipoVisita").ifBlank { "Solo pruebas" },
+            descripcionMantenimiento = valorTexto(datosProtocolo, "descripcionMantenimiento").ifBlank { null },
+            receptorNombre = valorTexto(datosProtocolo, "receptorNombre"),
+            receptorRut = valorTexto(datosProtocolo, "receptorRut"),
+            receptorCargo = valorTexto(datosProtocolo, "receptorCargo"),
+            numeroOt = valorTexto(datosProtocolo, "numeroOt"),
+            fechaRecepcion = valorTexto(datosProtocolo, "fechaRecepcion"),
+            idVisita = valorLong(datosProtocolo, "idVisita") ?: 0L,
+            fechaFormalizacion = valorFecha(datosProtocolo, "fechaFormalizacion").ifBlank { null },
+            motivoObservacion = valorTexto(datosProtocolo, "motivoObservacion").ifBlank { null },
+            historialEstados = registro.get("historialEstados")
+                ?.takeIf { it.isJsonArray }
+                ?.asJsonArray
+                ?.mapNotNull { evento ->
+                    if (evento.isJsonObject) mapearHistorialEstado(evento.asJsonObject) else null
+                }
+                .orEmpty()
+        )
+    }
+
+    private fun mapearHistorialEstado(registro: JsonObject): HistorialEstadoProtocolo? {
+        val estadoNuevo = valorTexto(registro, "estadoNuevo")
+        if (estadoNuevo.isBlank()) return null
+        val idUsuario = valorLong(registro, "idUsuario")
+        return HistorialEstadoProtocolo(
+            estadoAnterior = valorTexto(registro, "estadoAnterior").ifBlank { null },
+            estadoNuevo = estadoNuevo,
+            usuarioNombre = valorTexto(registro, "usuarioNombre")
+                .ifBlank { idUsuario?.let { "Usuario $it" }.orEmpty() },
+            fechaHora = valorFecha(registro, "fechaHora"),
+            motivo = valorTexto(registro, "motivo").ifBlank { null }
         )
     }
 
@@ -1243,40 +1191,33 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun obtenerProtocoloVisible(idProtocolo: Long, usuario: Usuario?): ProtocoloTerreno? {
         usuario ?: return null
-        val remoto = protocolosRemotos.firstOrNull { it.idProtocolo == idProtocolo }
-        val local = db.obtenerProtocoloPorId(idProtocolo)
-        if (usuario.rolCodigo.equals(Rol.CODIGO_TECNICO, ignoreCase = true) &&
-            !db.tecnicoPuedeVerProtocolo(usuario.idUsuario, idProtocolo) && remoto == null
-        ) return null
-        if (usuario.rolCodigo.equals(Rol.CODIGO_CLIENTE, ignoreCase = true)) {
-            val idEmpresa = usuario.idEmpresaCliente ?: return null
-            if (!db.clientePuedeVerProtocolo(idProtocolo, idEmpresa) && remoto == null) return null
-        }
-        return local ?: remoto
+        return protocolosRemotos.firstOrNull { it.idProtocolo == idProtocolo }
     }
 
     suspend fun cargarDetalleProtocoloVisible(
         idProtocolo: Long,
         usuario: Usuario?
     ): ProtocoloTerreno? {
-        val protocoloBase = obtenerProtocoloVisible(idProtocolo, usuario) ?: return null
+        val protocoloBase = obtenerProtocoloVisible(idProtocolo, usuario)
+        if (usuario == null) return null
         try {
-            val detalleApi = repositorioRemoto.protocolo(idProtocolo)
-            val detalle = mapearProtocoloRemoto(detalleApi) ?: protocoloBase
-            val medicionesApi = repositorioRemoto.medicionesProtocolo(idProtocolo)
+            val detalleApi = apis.protocolos.protocolo(idProtocolo).exigirCuerpo()
+            val detalle = mapearProtocoloRemoto(detalleApi) ?: protocoloBase ?: return null
+            val respaldo = protocoloBase ?: detalle
+            val medicionesApi = apis.protocolos.mediciones(idProtocolo).exigirCuerpo()
             val mediciones = medicionesApi.mapNotNull { mapearMedicionRemota(it) }
             _errorLecturaRemota.value = null
             return detalle.copy(
-                numeroProtocolo = elegirTexto(detalle.numeroProtocolo, protocoloBase.numeroProtocolo),
-                tagEquipo = elegirTexto(detalle.tagEquipo, protocoloBase.tagEquipo),
-                clienteNombre = elegirTexto(detalle.clienteNombre, protocoloBase.clienteNombre),
-                instalacionNombre = elegirTexto(detalle.instalacionNombre, protocoloBase.instalacionNombre),
-                tecnicoNombre = elegirTexto(detalle.tecnicoNombre, protocoloBase.tecnicoNombre),
-                fechaHora = elegirTexto(detalle.fechaHora, protocoloBase.fechaHora),
-                estado = elegirTexto(detalle.estado, protocoloBase.estado),
-                resultadoGlobal = elegirTexto(detalle.resultadoGlobal, protocoloBase.resultadoGlobal),
-                resultadoEvaluado = elegirTexto(detalle.resultadoEvaluado, protocoloBase.resultadoEvaluado),
-                observaciones = elegirTextoNullable(detalle.observaciones, protocoloBase.observaciones),
+                numeroProtocolo = elegirTexto(detalle.numeroProtocolo, respaldo.numeroProtocolo),
+                tagEquipo = elegirTexto(detalle.tagEquipo, respaldo.tagEquipo),
+                clienteNombre = elegirTexto(detalle.clienteNombre, respaldo.clienteNombre),
+                instalacionNombre = elegirTexto(detalle.instalacionNombre, respaldo.instalacionNombre),
+                tecnicoNombre = elegirTexto(detalle.tecnicoNombre, respaldo.tecnicoNombre),
+                fechaHora = elegirTexto(detalle.fechaHora, respaldo.fechaHora),
+                estado = elegirTexto(detalle.estado, respaldo.estado),
+                resultadoGlobal = elegirTexto(detalle.resultadoGlobal, respaldo.resultadoGlobal),
+                resultadoEvaluado = elegirTexto(detalle.resultadoEvaluado, respaldo.resultadoEvaluado),
+                observaciones = elegirTextoNullable(detalle.observaciones, respaldo.observaciones),
                 mediciones = mediciones
             )
         } catch (error: ApiRequestException) {
@@ -1320,23 +1261,49 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         return respaldo
     }
 
-    fun cambiarEstadoProtocolo(
+    suspend fun cambiarEstadoProtocolo(
         idProtocolo: Long,
         nuevoEstado: String,
         usuario: Usuario,
         motivo: String? = null
     ): ProtocoloTerreno? {
-        if (!usuario.rolCodigo.equals("INGENIERO", ignoreCase = true) &&
-            !usuario.rolCodigo.equals("JEFE_TECNICO", ignoreCase = true)
-        ) return null
-        if (!db.cambiarEstadoProtocolo(idProtocolo, nuevoEstado, usuario.idUsuario, motivo)) return null
-        val protocolo = db.obtenerProtocoloPorId(idProtocolo) ?: return null
-        NotificacionesLocales.notificarEstadoProtocolo(
-            getApplication(),
-            protocolo.numeroProtocolo,
-            protocolo.estado
-        )
-        return protocolo
+        if (!puedeAdministrarAsignaciones(usuario)) return null
+        if (nuevoEstado in setOf("OBSERVADO", "ANULADO") && motivo.isNullOrBlank()) return null
+        return try {
+            apis.protocolos.cambiarEstado(
+                idProtocolo,
+                SolicitudEstadoProtocolo(nuevoEstado, motivo)
+            ).exigirCuerpo()
+            val base = protocolosRemotos.firstOrNull { it.idProtocolo == idProtocolo }
+                ?: apis.protocolos.protocolo(idProtocolo).exigirCuerpo()
+                    .let(::mapearProtocoloRemoto)
+                ?: return null
+            val actualizado = base.copy(
+                estado = nuevoEstado,
+                motivoObservacion = if (nuevoEstado == "OBSERVADO") motivo?.trim() else base.motivoObservacion
+            )
+            protocolosRemotos = protocolosRemotos.map {
+                if (it.idProtocolo == idProtocolo) actualizado else it
+            }
+            _historial.update { actuales ->
+                actuales.map { if (it.idProtocolo == idProtocolo) actualizado else it }
+            }
+            NotificacionesLocales.notificarEstadoProtocolo(
+                getApplication(),
+                actualizado.numeroProtocolo,
+                actualizado.estado
+            )
+            actualizado
+        } catch (error: ApiRequestException) {
+            mostrarErrorLectura("No se pudo cambiar el estado del protocolo: ${error.message}")
+            null
+        } catch (error: IOException) {
+            mostrarErrorLectura("No se pudo cambiar el estado del protocolo: ${error.message}")
+            null
+        } catch (error: RuntimeException) {
+            mostrarErrorLectura("No se pudo interpretar la respuesta al cambiar el estado.")
+            null
+        }
     }
 
     private fun validarInstrumentoVigente(inst: InstrumentoItem): Boolean {
@@ -1932,13 +1899,24 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
 
+        val instrumentosDisponibles = estado.instrumentosDisponiblesAislacion +
+            estado.instrumentosDisponiblesTtr +
+            estado.instrumentosDisponiblesDevanados +
+            estado.instrumentosDisponiblesRele
+        val instrumentoSinCatalogo = mediciones.firstOrNull { medicion ->
+            val idInstrumento = medicion.idInstrumento
+            idInstrumento == null || idInstrumento <= 0 ||
+                instrumentosDisponibles.none { it.idInstrumento == idInstrumento }
+        }
+        if (instrumentoSinCatalogo != null) {
+            _uiState.update {
+                it.copy(mensajeErrorFormulario = "Selecciona un instrumento registrado en el servidor para cada medición.")
+            }
+            return false
+        }
         val instrumentosUsados = mediciones.mapNotNull { medicion ->
             val id = medicion.idInstrumento ?: return@mapNotNull null
-            (estado.instrumentosDisponiblesAislacion +
-                    estado.instrumentosDisponiblesTtr +
-                    estado.instrumentosDisponiblesDevanados +
-                    estado.instrumentosDisponiblesRele)
-                .firstOrNull { it.idInstrumento == id }
+            instrumentosDisponibles.firstOrNull { it.idInstrumento == id }
         }
         val fechaHoraPrueba = runCatching {
             val formato = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ROOT).apply { isLenient = false }
@@ -1998,7 +1976,9 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             }
             protocolosPendientesVisita.add(registro)
             usuarioVisitaPendiente = idUsuarioActivo
-            val equipos = db.listarEquiposPorInstalacion(estado.idInstalacionSeleccionada)
+            val equipos = equiposRemotos.filter {
+                it.idInstalacion == estado.idInstalacionSeleccionada
+            }
             val tagsPendientes = protocolosPendientesVisita.map { protocolo ->
                 equipos.firstOrNull { it.idEquipo == protocolo.idEquipo }?.tag ?: protocolo.idEquipo.toString()
             }
@@ -2059,33 +2039,8 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             return false
         }
 
-        val idInsertado = db.registrarProtocoloLocal(registro)
-
-        val exito = idInsertado > 0
-        if (exito) {
-            sincronizarVisitaYProtocolos(listOf(registro), estado)
-            recargarHistorial(estado.idEquipo)
-            val otNotif = estado.otNumero
-            onLimpiar()
-            _uiState.update {
-                it.copy(
-                    mensajeNotificacionExito = "¡Protocolo de la OT-$otNotif registrado exitosamente!",
-                    idProtocoloRegistrado = idInsertado
-                )
-            }
-            db.obtenerProtocoloPorId(idInsertado)?.let { protocolo ->
-                NotificacionesLocales.notificarEstadoProtocolo(
-                    getApplication(),
-                    protocolo.numeroProtocolo,
-                    protocolo.estado
-                )
-            }
-        } else {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "No se pudo guardar el protocolo. Comprueba que el equipo y los instrumentos seleccionados sigan disponibles e inténtalo otra vez.")
-            }
-        }
-        return exito
+        enviarVisitaYProtocolos(listOf(registro), estado)
+        return true
     }
 
     fun cerrarVisita(idUsuarioActivo: Long): Boolean {
@@ -2097,56 +2052,25 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
             _uiState.update { it.copy(mensajeErrorFormulario = "El usuario activo no coincide con quien inició esta visita.") }
             return false
         }
-        val ids = db.registrarProtocolosVisitaLocal(protocolosPendientesVisita.toList())
-        if (ids.size != protocolosPendientesVisita.size) {
-            _uiState.update {
-                it.copy(mensajeErrorFormulario = "No se guardaron todos los protocolos de la visita. Comprueba que las instalaciones e instrumentos sigan disponibles antes de volver a intentarlo.")
-            }
-            return false
-        }
-        ids.forEach { id ->
-            db.obtenerProtocoloPorId(id)?.let { protocolo ->
-                NotificacionesLocales.notificarEstadoProtocolo(
-                    getApplication(),
-                    protocolo.numeroProtocolo,
-                    protocolo.estado
-                )
-            }
-        }
-        val idEquipo = protocolosPendientesVisita.first().idEquipo
-        val numeroOt = protocolosPendientesVisita.first().numeroOt
         val registrosVisita = protocolosPendientesVisita.toList()
         val estadoVisita = _uiState.value
-        sincronizarVisitaYProtocolos(registrosVisita, estadoVisita)
-        protocolosPendientesVisita.clear()
-        usuarioVisitaPendiente = null
-        recargarHistorial(idEquipo)
-        onLimpiar()
-        _uiState.update {
-            it.copy(
-                idProtocoloRegistrado = ids.last(),
-                protocolosPendientesVisita = 0,
-                tagsPendientesVisita = emptyList(),
-                mensajeNotificacionExito = "Visita OT-$numeroOt registrada con ${ids.size} protocolo(s)."
-            )
-        }
+        enviarVisitaYProtocolos(registrosVisita, estadoVisita)
         return true
     }
 
-    private fun sincronizarVisitaYProtocolos(
+    private fun enviarVisitaYProtocolos(
         registros: List<RegistroProtocolo>,
         estado: FormularioProtocoloUiState
     ) {
         if (registros.isEmpty()) {
             return
         }
-        val idVisitaLocal = -System.currentTimeMillis()
         val fecha = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ROOT)
         val fechaServidor = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT)
         val fechaParseada = fecha.parse("${estado.fechaVisita} ${estado.horaInicio}")
         if (fechaParseada == null) {
             _uiState.update {
-                it.copy(mensajeErrorFormulario = "No se pudo preparar la fecha de visita para sincronizar.")
+                it.copy(mensajeErrorFormulario = "No se pudo preparar la fecha de la visita.")
             }
             return
         }
@@ -2171,13 +2095,19 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             try {
-                repositorioRemoto.crearVisita(solicitudVisita, idVisitaLocal)
+                val visitaRemota = apis.equipos.crearVisita(solicitudVisita).exigirCuerpo()
+                val idVisitaRemota = valorLong(visitaRemota, "idVisita", "id")
+                    ?: throw IOException("El servidor no devolvió el identificador de la visita.")
+                val idsProtocolos = mutableListOf<Long>()
                 for ((indice, registro) in registros.withIndex()) {
-                    repositorioRemoto.agregarEquipoVisita(
-                        idVisitaLocal,
-                        registro.idEquipo,
-                        indice + 1
-                    )
+                    val solicitudEquipoVisita = JsonObject().apply {
+                        addProperty("idEquipo", registro.idEquipo)
+                        addProperty("orden", indice + 1)
+                    }
+                    apis.equipos.agregarEquipoVisita(
+                        idVisitaRemota,
+                        solicitudEquipoVisita
+                    ).exigirExito()
                     val fechaProtocolo = SimpleDateFormat(
                         "yyyy-MM-dd HH:mm:ss",
                         Locale.ROOT
@@ -2216,7 +2146,7 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                     val solicitudProtocolo = ProtocoloPendienteRequest(
                         protocolo = ProtocoloRequest(
-                            idVisita = idVisitaLocal,
+                            idVisita = idVisitaRemota,
                             uuidSync = UUID.randomUUID().toString(),
                             idEquipo = registro.idEquipo,
                             idTecnico = registro.idUsuarioRegistra,
@@ -2234,22 +2164,44 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
                         ),
                         mediciones = mediciones
                     )
-                    repositorioRemoto.crearProtocolo(solicitudProtocolo)
+                    val protocoloCreado = apis.protocolos.crearProtocolo(solicitudProtocolo).exigirCuerpo()
+                    idsProtocolos.add(
+                        valorLong(protocoloCreado, "idProtocolo", "id")
+                            ?: throw IOException("El servidor no devolvió el identificador del protocolo.")
+                    )
                 }
-                repositorioRemoto.cerrarVisita(idVisitaLocal)
+                apis.equipos.cerrarVisitaRemota(idVisitaRemota).exigirExito()
+                val numeroOt = registros.first().numeroOt
+                val idEquipo = registros.first().idEquipo
+                protocolosPendientesVisita.clear()
+                usuarioVisitaPendiente = null
+                onLimpiar()
+                _uiState.update {
+                    it.copy(
+                        idProtocoloRegistrado = idsProtocolos.lastOrNull(),
+                        protocolosPendientesVisita = 0,
+                        tagsPendientesVisita = emptyList(),
+                        mensajeNotificacionExito = if (registros.size == 1) {
+                            "¡Protocolo de la OT-$numeroOt registrado exitosamente!"
+                        } else {
+                            "Visita OT-$numeroOt registrada con ${idsProtocolos.size} protocolo(s)."
+                        }
+                    )
+                }
+                recargarHistorial(idEquipo)
             } catch (error: ApiRequestException) {
                 _uiState.update {
-                    it.copy(mensajeErrorFormulario = "Sincronización: ${error.message}")
+                    it.copy(mensajeErrorFormulario = "El servidor rechazó el protocolo: ${error.message}")
                 }
             } catch (error: java.io.IOException) {
                 _uiState.update {
                     it.copy(
-                        mensajeErrorFormulario = "Sincronización: el envío quedó pendiente. ${error.message}"
+                        mensajeErrorFormulario = "No se pudo enviar el protocolo al servidor: ${error.message}"
                     )
                 }
             } catch (error: IllegalArgumentException) {
                 _uiState.update {
-                    it.copy(mensajeErrorFormulario = "Sincronización: ${error.message}")
+                    it.copy(mensajeErrorFormulario = "No se pudo preparar el protocolo: ${error.message}")
                 }
             }
         }
@@ -2280,26 +2232,6 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         recalcularGlobal()
     }
 
-    fun onFormalizarProtocoloDirecto(idProtocolo: Long, idUsuarioActivo: Long): Boolean {
-        val exito = db.cambiarEstadoProtocolo(
-            idProtocolo = idProtocolo,
-            nuevoEstado = "FORMALIZADO",
-            idUsuario = idUsuarioActivo,
-            motivo = "Aprobado y formalizado oficialmente"
-        )
-        if (exito) {
-            db.obtenerProtocoloPorId(idProtocolo)?.let { protocolo ->
-                NotificacionesLocales.notificarEstadoProtocolo(
-                    getApplication(),
-                    protocolo.numeroProtocolo,
-                    protocolo.estado
-                )
-            }
-            _uiState.update { it.copy(mensajeNotificacionExito = "¡Protocolo formalizado exitosamente en BD!") }
-        }
-        return exito
-    }
-
     fun descartarNotificacionExito() {
         _uiState.update { it.copy(mensajeNotificacionExito = null) }
     }
@@ -2320,17 +2252,11 @@ class ProtocoloViewModel(application: Application) : AndroidViewModel(applicatio
         if (usuario != null) {
             inicializarParaUsuario(usuario)
         } else {
-            _uiState.update {
-                it.copy(
-                    clientesDisponibles = db.listarClientes().map { cliente -> cliente.razonSocial }
-                )
-            }
+            _uiState.update { it.copy(clientesDisponibles = emptyList()) }
         }
     }
 
     override fun onCleared() {
-        repositorioRemoto.cerrar()
-        db.close()
         super.onCleared()
     }
 }

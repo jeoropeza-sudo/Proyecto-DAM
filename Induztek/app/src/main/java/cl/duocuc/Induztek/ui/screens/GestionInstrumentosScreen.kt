@@ -206,50 +206,6 @@ fun GestionInstrumentosScreen(
                     Text(estado.mensaje.orEmpty(), color = MaterialTheme.colorScheme.primary)
                 }
 
-                if (estado.conflictos.isNotEmpty()) {
-                    Text(
-                        "Conflictos de sincronización",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    for (conflicto in estado.conflictos) {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    "${conflicto.resourceType}: ${conflicto.operation}",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    conflicto.lastError.orEmpty(),
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                                Text(
-                                    "Elige qué copia conservar.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.resolverConflicto(conflicto.id, true)
-                                        }
-                                    ) {
-                                        Text("Reintentar local")
-                                    }
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.resolverConflicto(conflicto.id, false)
-                                        }
-                                    ) {
-                                        Text("Descartar local")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Text("Inventario", style = MaterialTheme.typography.titleLarge)
                 if (estado.cargando) {
                     Text("Cargando instrumentos...")

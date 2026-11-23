@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -55,8 +54,7 @@ fun InicioScreen(
     onAbrirHistorial: () -> Unit,
     onAbrirAsignaciones: () -> Unit,
     onCrearCuenta: () -> Unit,
-    onGestionarInstalaciones: () -> Unit,
-    onGestionarSincronizacion: () -> Unit
+    onGestionarInstalaciones: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val rol = usuarioActivo?.rolCodigo.orEmpty()
@@ -163,7 +161,6 @@ fun InicioScreen(
                             add(AccionInicio("Asignaciones", "Técnicos y equipos", Icons.Filled.Assignment, onAbrirAsignaciones))
                             add(AccionInicio("Crear cuenta", "Usuario y empresa cliente", Icons.Filled.PersonAdd, onCrearCuenta))
                             add(AccionInicio("Instalaciones", "Crear plantas o sucursales", Icons.Filled.Business, onGestionarInstalaciones))
-                            add(AccionInicio("Sincronización", "Pendientes y conflictos", Icons.Filled.Sync, onGestionarSincronizacion))
                         }
                         else -> emptyList()
                     }

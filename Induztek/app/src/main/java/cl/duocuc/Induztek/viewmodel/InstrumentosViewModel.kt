@@ -4,10 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cl.duocuc.Induztek.data.remote.ApiRequestException
-import cl.duocuc.Induztek.data.remote.InduztekRepository
-import cl.duocuc.Induztek.data.remote.SyncQueueEntry
+import cl.duocuc.Induztek.data.remote.RetrofitClient
+import cl.duocuc.Induztek.data.remote.exigirCuerpo
+import cl.duocuc.Induztek.data.remote.exigirExito
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -25,14 +25,13 @@ data class InstrumentoAdministrativo(
 
 data class InstrumentosUiState(
     val instrumentos: List<InstrumentoAdministrativo> = emptyList(),
-    val conflictos: List<SyncQueueEntry> = emptyList(),
     val cargando: Boolean = false,
     val mensaje: String? = null,
     val error: String? = null
 )
 
 class InstrumentosViewModel(application: Application) : AndroidViewModel(application) {
-    private val repositorio = InduztekRepository(application)
+    private val api = RetrofitClient.crear(application).instrumentos
     private val _estado = MutableStateFlow(InstrumentosUiState())
     val estado = _estado.asStateFlow()
 
@@ -43,12 +42,11 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
     fun cargarInstrumentos() {
         _estado.value = _estado.value.copy(
             cargando = true,
-            error = null,
-            conflictos = repositorio.conflictosPendientes()
+            error = null
         )
         viewModelScope.launch {
             try {
-                val respuestas = repositorio.instrumentos(tipoPrueba = null)
+                val respuestas = api.instrumentos(tipoPrueba = null, activo = true).exigirCuerpo()
                 val instrumentos = mutableListOf<InstrumentoAdministrativo>()
                 for (respuesta in respuestas) {
                     instrumentos.add(
@@ -68,14 +66,12 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
             } catch (error: ApiRequestException) {
                 _estado.value = _estado.value.copy(
                     cargando = false,
-                    error = error.message,
-                    conflictos = repositorio.conflictosPendientes()
+                    error = error.message
                 )
             } catch (_: java.io.IOException) {
                 _estado.value = _estado.value.copy(
                     cargando = false,
-                    error = "No se pudo cargar el inventario de instrumentos.",
-                    conflictos = repositorio.conflictosPendientes()
+                    error = "No se pudo cargar el inventario de instrumentos."
                 )
             }
         }
@@ -98,21 +94,13 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
         cambiarEstadoCargando()
         viewModelScope.launch {
             try {
-                val resultado = repositorio.crearInstrumento(solicitud)
+                api.crearInstrumento(solicitud).exigirExito()
                 _estado.value = _estado.value.copy(
                     cargando = false,
-                    mensaje = if (resultado.enCola) {
-                        "Instrumento guardado en la cola y se sincronizará cuando vuelva la conexión."
-                    } else {
-                        "Instrumento creado."
-                    },
+                    mensaje = "Instrumento creado.",
                     error = null
                 )
-                if (!resultado.enCola) {
-                    cargarInstrumentos()
-                } else {
-                    refrescarConflictos()
-                }
+                cargarInstrumentos()
             } catch (error: ApiRequestException) {
                 _estado.value = _estado.value.copy(cargando = false, error = error.message)
             } catch (_: java.io.IOException) {
@@ -125,24 +113,16 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
         cambiarEstadoCargando()
         viewModelScope.launch {
             try {
-                val resultado = repositorio.cambiarEstadoInstrumento(
+                api.cambiarEstadoInstrumento(
                     instrumento.id,
                     !instrumento.activo
-                )
+                ).exigirExito()
                 _estado.value = _estado.value.copy(
                     cargando = false,
-                    mensaje = if (resultado.enCola) {
-                        "Cambio de estado pendiente de sincronización."
-                    } else {
-                        "Estado del instrumento actualizado."
-                    },
+                    mensaje = "Estado del instrumento actualizado.",
                     error = null
                 )
-                if (!resultado.enCola) {
-                    cargarInstrumentos()
-                } else {
-                    refrescarConflictos()
-                }
+                cargarInstrumentos()
             } catch (error: ApiRequestException) {
                 _estado.value = _estado.value.copy(cargando = false, error = error.message)
             } catch (_: java.io.IOException) {
@@ -166,21 +146,13 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
         cambiarEstadoCargando()
         viewModelScope.launch {
             try {
-                val resultado = repositorio.registrarCalibracion(instrumentoId, solicitud)
+                api.registrarCalibracion(instrumentoId, solicitud).exigirExito()
                 _estado.value = _estado.value.copy(
                     cargando = false,
-                    mensaje = if (resultado.enCola) {
-                        "Calibración en cola para sincronizar."
-                    } else {
-                        "Calibración registrada."
-                    },
+                    mensaje = "Calibración registrada.",
                     error = null
                 )
-                if (!resultado.enCola) {
-                    cargarInstrumentos()
-                } else {
-                    refrescarConflictos()
-                }
+                cargarInstrumentos()
             } catch (error: ApiRequestException) {
                 _estado.value = _estado.value.copy(cargando = false, error = error.message)
             } catch (_: java.io.IOException) {
@@ -191,21 +163,6 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
 
     private fun cambiarEstadoCargando() {
         _estado.value = _estado.value.copy(cargando = true, error = null, mensaje = null)
-    }
-
-    fun resolverConflicto(conflictoId: String, mantenerLocal: Boolean) {
-        repositorio.resolverConflicto(conflictoId, mantenerLocal)
-        refrescarConflictos()
-        val mensaje = if (mantenerLocal) {
-            "El cambio local se volverá a intentar."
-        } else {
-            "Se descartó el cambio local; se conservará el registro del servidor."
-        }
-        _estado.value = _estado.value.copy(mensaje = mensaje)
-    }
-
-    private fun refrescarConflictos() {
-        _estado.value = _estado.value.copy(conflictos = repositorio.conflictosPendientes())
     }
 
     private fun leerTexto(json: JsonObject, clave: String): String {
@@ -230,10 +187,5 @@ class InstrumentosViewModel(application: Application) : AndroidViewModel(applica
             return false
         }
         return valor.asBoolean
-    }
-
-    override fun onCleared() {
-        repositorio.cerrar()
-        super.onCleared()
     }
 }
