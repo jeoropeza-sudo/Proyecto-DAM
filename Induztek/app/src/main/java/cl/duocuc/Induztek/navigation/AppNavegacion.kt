@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
@@ -45,11 +46,14 @@ import cl.duocuc.Induztek.ui.screens.PerfilScreen
 import cl.duocuc.Induztek.ui.screens.ClienteScreen
 import cl.duocuc.Induztek.ui.screens.AsignacionesTecnicosScreen
 import cl.duocuc.Induztek.ui.screens.InicioScreen
-import cl.duocuc.Induztek.ui.screens.RecuperarClaveScreen
+import cl.duocuc.Induztek.ui.screens.RecuperarClaveCorreoScreen
 import cl.duocuc.Induztek.ui.screens.CrearCuentaScreen
 import cl.duocuc.Induztek.ui.screens.CambioClaveObligatorioScreen
 import cl.duocuc.Induztek.ui.screens.GestionInstalacionesScreen
+import cl.duocuc.Induztek.ui.screens.GestionInstrumentosScreen
+import cl.duocuc.Induztek.ui.screens.GestionSincronizacionScreen
 import cl.duocuc.Induztek.viewmodel.ProtocoloViewModel
+import cl.duocuc.Induztek.viewmodel.EstadoSincronizacionViewModel
 import cl.duocuc.Induztek.viewmodel.UsuariosViewModel
 
 @Composable
@@ -99,6 +103,18 @@ fun AppNavegacion(
                 !puedeCrearCuentas -> {
                 navController.navigate(Ruta.Inicio.ruta) {
                     popUpTo(Ruta.GestionInstalaciones.ruta) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && rutaActual == Ruta.GestionInstrumentos.ruta &&
+                !puedeCrearCuentas -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.GestionInstrumentos.ruta) { inclusive = true }
+                }
+            }
+            usuarioActivo != null && rutaActual == Ruta.Sincronizacion.ruta &&
+                !puedeCrearCuentas -> {
+                navController.navigate(Ruta.Inicio.ruta) {
+                    popUpTo(Ruta.Sincronizacion.ruta) { inclusive = true }
                 }
             }
         }
@@ -204,6 +220,27 @@ fun AppNavegacion(
                                 },
                                 icon = { Icon(Icons.Default.Assignment, contentDescription = "Asignaciones") }
                             )
+                            NavigationBarItem(
+                                selected = rutaActual == Ruta.GestionInstrumentos.ruta,
+                                onClick = {
+                                    navController.navigate(Ruta.GestionInstrumentos.ruta) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        "Instrumentos",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                },
+                                icon = { Icon(Icons.Default.Build, contentDescription = "Instrumentos") }
+                            )
                         }
                     } else {
                         NavigationBarItem(
@@ -308,7 +345,7 @@ fun AppNavegacion(
             }
 
             composable(Ruta.RecuperarClave.ruta) {
-                RecuperarClaveScreen(
+                RecuperarClaveCorreoScreen(
                     viewModel = usuariosViewModel,
                     onClaveActualizada = { navController.navigate(Ruta.Login.ruta) { popUpTo(Ruta.RecuperarClave.ruta) { inclusive = true } } },
                     onVolverLogin = { navController.popBackStack() }
@@ -326,6 +363,9 @@ fun AppNavegacion(
                     onCrearCuenta = { navController.navigate(Ruta.CrearCuenta.ruta) },
                     onGestionarInstalaciones = {
                         navController.navigate(Ruta.GestionInstalaciones.ruta)
+                    },
+                    onGestionarSincronizacion = {
+                        navController.navigate(Ruta.Sincronizacion.ruta)
                     }
                 )
             }
@@ -339,6 +379,18 @@ fun AppNavegacion(
                         navController.navigate(Ruta.Inicio.ruta) {
                             popUpTo(Ruta.Inicio.ruta) { inclusive = false }
                             launchSingleTop = true
+                        }
+
+                        composable(Ruta.GestionInstrumentos.ruta) {
+                            GestionInstrumentosScreen(usuarioActivo = usuarioActivo)
+                        }
+
+                        composable(Ruta.Sincronizacion.ruta) {
+                            val sincronizacionViewModel: EstadoSincronizacionViewModel = viewModel()
+                            GestionSincronizacionScreen(
+                                viewModel = sincronizacionViewModel,
+                                onVolver = { navController.popBackStack() }
+                            )
                         }
                     }
                 )

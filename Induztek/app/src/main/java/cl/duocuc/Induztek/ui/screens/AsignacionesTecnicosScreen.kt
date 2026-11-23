@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,9 +74,8 @@ fun AsignacionesTecnicosScreen(
     val tecnicos = remember(usuarioActivo?.idUsuario, puedeAsignar) {
         viewModel.tecnicosParaAsignacion(usuarioActivo)
     }
-    val instalaciones = remember(usuarioActivo?.idUsuario, puedeAsignar) {
-        viewModel.instalacionesParaAsignacion(usuarioActivo)
-    }
+    val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
+    var instalaciones by remember { mutableStateOf(emptyList<cl.duocuc.Induztek.model.InstalacionAsignacionLocal>()) }
     var tecnicoSeleccionadoId by remember { mutableStateOf<Long?>(null) }
     var instalacionesSeleccionadas by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var asignacionesOriginales by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -94,6 +94,17 @@ fun AsignacionesTecnicosScreen(
                 it.empresa.contains(busqueda.trim(), ignoreCase = true)
     }
 
+    LaunchedEffect(usuarioActivo?.idUsuario, puedeAsignar) {
+        instalaciones = viewModel.leerInstalacionesParaAsignacion(usuarioActivo)
+    }
+
+    LaunchedEffect(errorLecturaRemota) {
+        val error = errorLecturaRemota
+        if (error != null) {
+            mensaje = error
+        }
+    }
+
     fun guardarAsignacionesSeleccionadas() {
         val idTecnico = tecnicoSeleccionadoId
         if (idTecnico == null) {
@@ -108,10 +119,12 @@ fun AsignacionesTecnicosScreen(
         )
         if (guardado) {
             asignacionesOriginales = instalacionesSeleccionadas
-            instalacionesOcupadas =
-                viewModel.instalacionesAsignadasAOtrosTecnicos(idTecnico, usuarioActivo)
             mensaje = null
             scope.launch {
+                instalacionesOcupadas = viewModel.leerInstalacionesAsignadasAOtrosTecnicos(
+                    idTecnico,
+                    usuarioActivo
+                )
                 snackbarHostState.showSnackbar(
                     "Se actualizaron ${instalacionesSeleccionadas.size} instalaciones para el técnico."
                 )
@@ -127,12 +140,16 @@ fun AsignacionesTecnicosScreen(
     LaunchedEffect(tecnicoSeleccionadoId, usuarioActivo?.idUsuario) {
         val idTecnico = tecnicoSeleccionadoId
         if (idTecnico != null) {
-            val asignadas = viewModel.idsAsignadosATecnico(idTecnico, usuarioActivo)
+            val asignadas = viewModel.leerIdsAsignadosATecnico(idTecnico, usuarioActivo)
             instalacionesSeleccionadas = asignadas
             asignacionesOriginales = asignadas
-            instalacionesOcupadas =
-                viewModel.instalacionesAsignadasAOtrosTecnicos(idTecnico, usuarioActivo)
-            mensaje = null
+            instalacionesOcupadas = viewModel.leerInstalacionesAsignadasAOtrosTecnicos(
+                idTecnico,
+                usuarioActivo
+            )
+            if (errorLecturaRemota == null) {
+                mensaje = null
+            }
         } else {
             instalacionesSeleccionadas = emptySet()
             asignacionesOriginales = emptySet()

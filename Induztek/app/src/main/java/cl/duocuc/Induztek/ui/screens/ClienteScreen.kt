@@ -51,6 +51,7 @@ fun ClienteScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val historialRaw by viewModel.historial.collectAsState()
+    val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
     var filtrosSeleccionados by remember { mutableStateOf(emptySet<String>()) }
 
     LaunchedEffect(usuarioActivo?.idUsuario) {
@@ -97,11 +98,29 @@ fun ClienteScreen(
                 .padding(Dimens.espacioPantalla),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            if (errorLecturaRemota != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        errorLecturaRemota.orEmpty(),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        uiState.clienteNombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text("INSTALACIÓN ACTIVA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f))
                     Text(uiState.instalacionNombre, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                 }

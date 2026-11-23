@@ -57,6 +57,7 @@ fun HistorialEquipoScreen(
 ) {
     val historialRaw by viewModel.historial.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
     var filtrosSeleccionados by remember { mutableStateOf(emptySet<String>()) }
 
     LaunchedEffect(idEquipo, usuarioActivo?.idUsuario) {
@@ -110,6 +111,19 @@ fun HistorialEquipoScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (errorLecturaRemota != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        errorLecturaRemota.orEmpty(),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
             FiltroProtocoloCombo(
                 protocolos = protocolosIndexados,
                 seleccion = filtrosSeleccionados,

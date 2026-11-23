@@ -69,6 +69,7 @@ fun ComprobanteTerrenoScreen(
     usuarioActivo: Usuario?,
     onVolver: () -> Unit
 ) {
+    val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
     var protocolo by remember(idProtocolo) { mutableStateOf<ProtocoloTerreno?>(null) }
     var motivoRevision by remember(idProtocolo) { mutableStateOf("") }
     var mensajeRevision by remember(idProtocolo) { mutableStateOf<String?>(null) }
@@ -120,7 +121,7 @@ fun ComprobanteTerrenoScreen(
     }
 
     LaunchedEffect(idProtocolo, usuarioActivo) {
-        protocolo = viewModel.obtenerProtocoloVisible(idProtocolo, usuarioActivo)
+        protocolo = viewModel.cargarDetalleProtocoloVisible(idProtocolo, usuarioActivo)
     }
     LaunchedEffect(mensajeRevision) {
         mensajeRevision?.let {
@@ -161,6 +162,19 @@ fun ComprobanteTerrenoScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val registro = protocolo
+            if (errorLecturaRemota != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        errorLecturaRemota.orEmpty(),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
             if (registro == null) {
                 Text(
                     "No se encontró el protocolo o no tienes permiso para consultarlo.",

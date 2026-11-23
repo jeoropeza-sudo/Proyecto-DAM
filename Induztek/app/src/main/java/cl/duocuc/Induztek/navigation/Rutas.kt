@@ -12,6 +12,8 @@ sealed class Ruta(val ruta: String) {
     data object Perfil : Ruta("perfil")
     data object Asignaciones : Ruta("asignaciones")
     data object GestionInstalaciones : Ruta("gestion_instalaciones")
+    data object GestionInstrumentos : Ruta("gestion_instrumentos")
+    data object Sincronizacion : Ruta("sincronizacion")
     data object VistaCliente : Ruta("vista_cliente")
     data object Inicio : Ruta("inicio")
     data object Comprobante : Ruta("comprobante/{idProtocolo}") {

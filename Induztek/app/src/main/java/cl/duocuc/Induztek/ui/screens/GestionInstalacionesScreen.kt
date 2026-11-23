@@ -22,6 +22,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +48,8 @@ fun GestionInstalacionesScreen(
     onVolver: () -> Unit,
     onIrInicio: () -> Unit
 ) {
+    val estado by viewModel.uiState.collectAsState()
+    val errorLecturaRemota by viewModel.errorLecturaRemota.collectAsState()
     val clientes = remember(usuarioActivo?.idUsuario) {
         viewModel.clientesConEmpresaParaInstalaciones(usuarioActivo)
     }
@@ -76,10 +80,37 @@ fun GestionInstalacionesScreen(
         viewModel.tiposEquipoParaGestion(usuarioActivo)
     }
     val clienteSeleccionado = clientes.firstOrNull { it.idUsuario == clienteSeleccionadoId }
-    val instalaciones = remember(clienteSeleccionadoId, recarga) {
-        clienteSeleccionadoId?.let {
-            viewModel.instalacionesDeClienteParaGestion(it, usuarioActivo)
-        }.orEmpty()
+    var instalaciones by remember { mutableStateOf(emptyList<cl.duocuc.Induztek.model.InstalacionCatalogoLocal>()) }
+    var equiposPorInstalacion by remember { mutableStateOf(emptyMap<Long, List<cl.duocuc.Induztek.model.EquipoCatalogoLocal>>()) }
+
+    LaunchedEffect(clienteSeleccionadoId, recarga, usuarioActivo?.idUsuario) {
+        val idCliente = clienteSeleccionadoId
+        if (idCliente == null) {
+            instalaciones = emptyList()
+            equiposPorInstalacion = emptyMap()
+        } else {
+            instalaciones = viewModel.leerInstalacionesDeClienteParaGestion(idCliente, usuarioActivo)
+            val equipos = mutableMapOf<Long, List<cl.duocuc.Induztek.model.EquipoCatalogoLocal>>()
+            for (instalacion in instalaciones) {
+                equipos[instalacion.idInstalacion] =
+                    viewModel.leerEquiposDeInstalacionParaGestion(instalacion.idInstalacion, usuarioActivo)
+            }
+            equiposPorInstalacion = equipos
+        }
+    }
+
+    LaunchedEffect(errorLecturaRemota) {
+        if (errorLecturaRemota != null) {
+            snackbarHostState.showSnackbar(errorLecturaRemota.orEmpty())
+        }
+    }
+
+    LaunchedEffect(estado.mensajeErrorFormulario) {
+        val errorRemoto = estado.mensajeErrorFormulario
+        if (errorRemoto != null && errorRemoto.startsWith("Sincronización:")) {
+            snackbarHostState.showSnackbar(errorRemoto)
+            viewModel.descartarErrorFormulario()
+        }
     }
 
     Scaffold(
@@ -180,12 +211,7 @@ fun GestionInstalacionesScreen(
                         )
                     } else {
                         instalaciones.forEach { instalacion ->
-                            val equipos = remember(instalacion.idInstalacion, recarga) {
-                                viewModel.equiposDeInstalacionParaGestion(
-                                    instalacion.idInstalacion,
-                                    usuarioActivo
-                                )
-                            }
+                            val equipos = equiposPorInstalacion[instalacion.idInstalacion].orEmpty()
                             Card(modifier = Modifier.fillMaxWidth()) {
                                 Column(
                                     modifier = Modifier.padding(14.dp),
@@ -473,6 +499,7 @@ fun GestionInstalacionesScreen(
                                                         resistenciaContactoMaxUohm =
                                                             resistenciaContacto.takeIf { it.isNotBlank() }
                                                                 ?.replace(',', '.')?.toDouble(),
+                                                        idCliente = clienteSeleccionado.idUsuario,
                                                         usuario = usuarioActivo
                                                     )
                                                     if (resultado.exitosa) {
